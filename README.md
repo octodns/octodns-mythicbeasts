@@ -1,5 +1,3 @@
-TODO: Review this README and add or modify as necessary.
-
 ## Mythic Beasts DNS provider for octoDNS
 
 An [octoDNS](https://github.com/octodns/octodns/) provider that targets [Mythic Beasts DNS](https://www.mythic-beasts.com/support/hosting/dns).
@@ -38,21 +36,20 @@ octodns_mythicbeasts==0.0.1
 providers:
   mythicbeasts:
     class: octodns_mythicbeasts.MythicBeastsProvider
-    # TODO
+    passwords:
+      my.domain.: env/MYTHICBEASTS_PASSWORD
 ```
 
 ### Support Information
 
 #### Records
 
-TODO: All octoDNS record types are supported.
+MythicBeastsProvider supports A, AAAA, ALIAS, CNAME, MX, NS, SRV, SSHFP, CAA, and TXT
 
 #### Dynamic
 
-TODO: MythicBeastsProvider does not support dynamic records.
+MythicBeastsProvider does not support dynamic records.
 
 ### Developement
 
 See the [/script/](/script/) directory for some tools to help with the development process. They generally follow the [Script to rule them all](https://github.com/github/scripts-to-rule-them-all) pattern. Most useful is `./script/bootstrap` which will create a venv and install both the runtime and development related requirements. It will also hook up a pre-commit hook that covers most of what's run by CI.
-
-TODO: any provider specific setup, a docker compose to run things locally etc?
