@@ -18,7 +18,7 @@ from octodns_mythicbeasts import MythicBeastsProvider, \
 class TestMythicBeastsProvider(TestCase):
     expected = Zone('unit.tests.', [])
     source = YamlProvider('test_expected',
-                          join(dirname(__file__), 'tests', 'config'))
+                          join(dirname(__file__), 'config'))
     source.populate(expected)
 
     # Dump anything we don't support from expected
@@ -29,16 +29,16 @@ class TestMythicBeastsProvider(TestCase):
     def test_trailing_dot(self):
         with self.assertRaises(AssertionError) as err:
             add_trailing_dot('unit.tests.')
-        self.assertEquals('Value already has trailing dot',
-                          str(err.exception))
+        self.assertEqual('Value already has trailing dot',
+                         str(err.exception))
 
         with self.assertRaises(AssertionError) as err:
             remove_trailing_dot('unit.tests')
-        self.assertEquals('Value already missing trailing dot',
-                          str(err.exception))
+        self.assertEqual('Value already missing trailing dot',
+                         str(err.exception))
 
-        self.assertEquals(add_trailing_dot('unit.tests'), 'unit.tests.')
-        self.assertEquals(remove_trailing_dot('unit.tests.'), 'unit.tests')
+        self.assertEqual(add_trailing_dot('unit.tests'), 'unit.tests.')
+        self.assertEqual(remove_trailing_dot('unit.tests.'), 'unit.tests')
 
     def test_data_for_single(self):
         test_data = {
@@ -47,7 +47,7 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_single = MythicBeastsProvider._data_for_single('', test_data)
         self.assertTrue(isinstance(test_single, dict))
-        self.assertEquals('a:a::c', test_single['value'])
+        self.assertEqual('a:a::c', test_single['value'])
 
     def test_data_for_multiple(self):
         test_data = {
@@ -58,7 +58,7 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_multiple = MythicBeastsProvider._data_for_multiple('', test_data)
         self.assertTrue(isinstance(test_multiple, dict))
-        self.assertEquals(2, len(test_multiple['values']))
+        self.assertEqual(2, len(test_multiple['values']))
 
     def test_data_for_txt(self):
         test_data = {
@@ -69,8 +69,8 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_txt = MythicBeastsProvider._data_for_TXT('', test_data)
         self.assertTrue(isinstance(test_txt, dict))
-        self.assertEquals(2, len(test_txt['values']))
-        self.assertEquals('v=DKIM1\\; k=rsa\\; p=prawf', test_txt['values'][0])
+        self.assertEqual(2, len(test_txt['values']))
+        self.assertEqual('v=DKIM1\\; k=rsa\\; p=prawf', test_txt['values'][0])
 
     def test_data_for_MX(self):
         test_data = {
@@ -82,14 +82,14 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_MX = MythicBeastsProvider._data_for_MX('', test_data)
         self.assertTrue(isinstance(test_MX, dict))
-        self.assertEquals(3, len(test_MX['values']))
+        self.assertEqual(3, len(test_MX['values']))
 
         with self.assertRaises(AssertionError) as err:
             test_MX = MythicBeastsProvider._data_for_MX(
                 '',
                 {'raw_values': [{'value': '', 'ttl': 0}]}
             )
-        self.assertEquals('Unable to parse MX data', str(err.exception))
+        self.assertEqual('Unable to parse MX data', str(err.exception))
 
     def test_data_for_CNAME(self):
         test_data = {
@@ -98,7 +98,7 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_cname = MythicBeastsProvider._data_for_CNAME('', test_data)
         self.assertTrue(isinstance(test_cname, dict))
-        self.assertEquals('cname.unit.tests.', test_cname['value'])
+        self.assertEqual('cname.unit.tests.', test_cname['value'])
 
     def test_data_for_ANAME(self):
         test_data = {
@@ -107,7 +107,7 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_aname = MythicBeastsProvider._data_for_ANAME('', test_data)
         self.assertTrue(isinstance(test_aname, dict))
-        self.assertEquals('aname', test_aname['value'])
+        self.assertEqual('aname', test_aname['value'])
 
     def test_data_for_SRV(self):
         test_data = {
@@ -119,14 +119,14 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_SRV = MythicBeastsProvider._data_for_SRV('', test_data)
         self.assertTrue(isinstance(test_SRV, dict))
-        self.assertEquals(3, len(test_SRV['values']))
+        self.assertEqual(3, len(test_SRV['values']))
 
         with self.assertRaises(AssertionError) as err:
             test_SRV = MythicBeastsProvider._data_for_SRV(
                 '',
                 {'raw_values': [{'value': '', 'ttl': 0}]}
             )
-        self.assertEquals('Unable to parse SRV data', str(err.exception))
+        self.assertEqual('Unable to parse SRV data', str(err.exception))
 
     def test_data_for_SSHFP(self):
         test_data = {
@@ -138,14 +138,14 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_SSHFP = MythicBeastsProvider._data_for_SSHFP('', test_data)
         self.assertTrue(isinstance(test_SSHFP, dict))
-        self.assertEquals(3, len(test_SSHFP['values']))
+        self.assertEqual(3, len(test_SSHFP['values']))
 
         with self.assertRaises(AssertionError) as err:
             test_SSHFP = MythicBeastsProvider._data_for_SSHFP(
                 '',
                 {'raw_values': [{'value': '', 'ttl': 0}]}
             )
-        self.assertEquals('Unable to parse SSHFP data', str(err.exception))
+        self.assertEqual('Unable to parse SSHFP data', str(err.exception))
 
     def test_data_for_CAA(self):
         test_data = {
@@ -154,14 +154,14 @@ class TestMythicBeastsProvider(TestCase):
         }
         test_CAA = MythicBeastsProvider._data_for_CAA('', test_data)
         self.assertTrue(isinstance(test_CAA, dict))
-        self.assertEquals(3, len(test_CAA['value']))
+        self.assertEqual(3, len(test_CAA['value']))
 
         with self.assertRaises(AssertionError) as err:
             test_CAA = MythicBeastsProvider._data_for_CAA(
                 '',
                 {'raw_values': [{'value': '', 'ttl': 0}]}
             )
-        self.assertEquals('Unable to parse CAA data', str(err.exception))
+        self.assertEqual('Unable to parse CAA data', str(err.exception))
 
     def test_command_generation(self):
         zone = Zone('unit.tests.', [])
@@ -237,7 +237,7 @@ class TestMythicBeastsProvider(TestCase):
             generated_commands.sort()
             expected_commands.sort()
 
-            self.assertEquals(
+            self.assertEqual(
                 generated_commands,
                 expected_commands
             )
@@ -269,7 +269,7 @@ class TestMythicBeastsProvider(TestCase):
             generated_commands.sort()
             expected_commands.sort()
 
-            self.assertEquals(
+            self.assertEqual(
                 generated_commands,
                 expected_commands
             )
@@ -298,7 +298,7 @@ class TestMythicBeastsProvider(TestCase):
             })
             record = FakeChangeRecord()
             command = provider._compile_commands('ADD', record)
-            self.assertEquals([], command)
+            self.assertEqual([], command)
 
     def test_populate(self):
         provider = None
@@ -306,7 +306,7 @@ class TestMythicBeastsProvider(TestCase):
         # Null passwords dict
         with self.assertRaises(AssertionError) as err:
             provider = MythicBeastsProvider('test', None)
-        self.assertEquals('Passwords must be a dictionary', str(err.exception))
+        self.assertEqual('Passwords must be a dictionary', str(err.exception))
 
         # Missing password
         with requests_mock() as mock:
@@ -316,8 +316,8 @@ class TestMythicBeastsProvider(TestCase):
                 provider = MythicBeastsProvider('test', dict())
                 zone = Zone('unit.tests.', [])
                 provider.populate(zone)
-            self.assertEquals('Missing password for domain: unit.tests',
-                              str(err.exception))
+            self.assertEqual('Missing password for domain: unit.tests',
+                             str(err.exception))
 
         # Failed authentication
         with requests_mock() as mock:
@@ -329,7 +329,7 @@ class TestMythicBeastsProvider(TestCase):
                 })
                 zone = Zone('unit.tests.', [])
                 provider.populate(zone)
-            self.assertEquals(
+            self.assertEqual(
                 'Mythic Beasts unauthorized for zone: unit.tests',
                 err.exception.message)
 
@@ -343,7 +343,7 @@ class TestMythicBeastsProvider(TestCase):
             })
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEquals(0, len(zone.records))
+            self.assertEqual(0, len(zone.records))
 
         # Check unsupported records are skipped
         test_data = '@ 60 NOOP prawf\n@ 60 SPF prawf prawf prawf'
@@ -355,7 +355,7 @@ class TestMythicBeastsProvider(TestCase):
             })
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
-            self.assertEquals(0, len(zone.records))
+            self.assertEqual(0, len(zone.records))
 
         # Check no changes between what we support and what's parsed
         # from the unit.tests. config YAML. Also make sure we see the same
@@ -370,10 +370,10 @@ class TestMythicBeastsProvider(TestCase):
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
 
-            self.assertEquals(17, len(zone.records))
-            self.assertEquals(17, len(self.expected.records))
+            self.assertEqual(17, len(zone.records))
+            self.assertEqual(17, len(self.expected.records))
             changes = self.expected.changes(zone, provider)
-            self.assertEquals(0, len(changes))
+            self.assertEqual(0, len(changes))
 
     def test_apply(self):
         provider = MythicBeastsProvider('test', {
@@ -386,7 +386,7 @@ class TestMythicBeastsProvider(TestCase):
             mock.post(ANY, status_code=200, text='')
             provider.populate(zone)
 
-        self.assertEquals(0, len(zone.records))
+        self.assertEqual(0, len(zone.records))
 
         # Record change failed
         with requests_mock() as mock:
@@ -404,7 +404,7 @@ class TestMythicBeastsProvider(TestCase):
 
             with self.assertRaises(Exception) as err:
                 provider.apply(plan)
-            self.assertEquals(
+            self.assertEqual(
                 'Mythic Beasts could not action command: unit.tests '
                 'ADD prawf.unit.tests 300 TXT prawf', err.exception.message)
 
@@ -433,11 +433,11 @@ class TestMythicBeastsProvider(TestCase):
             plan = provider.plan(wanted)
 
             # Octo ignores NS records (15-1)
-            self.assertEquals(1, len([c for c in plan.changes
-                                      if isinstance(c, Update)]))
-            self.assertEquals(1, len([c for c in plan.changes
-                                      if isinstance(c, Delete)]))
-            self.assertEquals(16, len([c for c in plan.changes
-                                       if isinstance(c, Create)]))
-            self.assertEquals(18, provider.apply(plan))
+            self.assertEqual(1, len([c for c in plan.changes
+                                     if isinstance(c, Update)]))
+            self.assertEqual(1, len([c for c in plan.changes
+                                     if isinstance(c, Delete)]))
+            self.assertEqual(16, len([c for c in plan.changes
+                                      if isinstance(c, Create)]))
+            self.assertEqual(18, provider.apply(plan))
             self.assertTrue(plan.exists)
