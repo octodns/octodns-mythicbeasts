@@ -39,46 +39,70 @@ class MythicBeastsUnauthorizedException(ProviderException):
         self.message = f'Mythic Beasts unauthorized for zone: {self.zone}'
 
         super(MythicBeastsUnauthorizedException, self).__init__(
-            self.message, self.zone, *args)
+            self.message, self.zone, *args
+        )
 
 
 class MythicBeastsRecordException(ProviderException):
     def __init__(self, zone, command, *args):
         self.zone = zone
         self.command = command
-        self.message = 'Mythic Beasts could not action command: ' \
+        self.message = (
+            'Mythic Beasts could not action command: '
             f'{self.zone} {self.command}'
+        )
 
         super(MythicBeastsRecordException, self).__init__(
-            self.message, self.zone, self.command, *args)
+            self.message, self.zone, self.command, *args
+        )
 
 
 class MythicBeastsProvider(BaseProvider):
-    RE_MX = re.compile(r'^(?P<preference>[0-9]+)\s+(?P<exchange>\S+)$',
-                       re.IGNORECASE)
+    RE_MX = re.compile(
+        r'^(?P<preference>[0-9]+)\s+(?P<exchange>\S+)$', re.IGNORECASE
+    )
 
-    RE_SRV = re.compile(r'^(?P<priority>[0-9]+)\s+(?P<weight>[0-9]+)\s+'
-                        r'(?P<port>[0-9]+)\s+(?P<target>\S+)$',
-                        re.IGNORECASE)
+    RE_SRV = re.compile(
+        r'^(?P<priority>[0-9]+)\s+(?P<weight>[0-9]+)\s+'
+        r'(?P<port>[0-9]+)\s+(?P<target>\S+)$',
+        re.IGNORECASE,
+    )
 
-    RE_SSHFP = re.compile(r'^(?P<algorithm>[0-9]+)\s+'
-                          r'(?P<fingerprint_type>[0-9]+)\s+'
-                          r'(?P<fingerprint>\S+)$',
-                          re.IGNORECASE)
+    RE_SSHFP = re.compile(
+        r'^(?P<algorithm>[0-9]+)\s+'
+        r'(?P<fingerprint_type>[0-9]+)\s+'
+        r'(?P<fingerprint>\S+)$',
+        re.IGNORECASE,
+    )
 
-    RE_CAA = re.compile(r'^(?P<flags>[0-9]+)\s+'
-                        r'(?P<tag>issue|issuewild|iodef)\s+'
-                        r'(?P<value>\S+)$',
-                        re.IGNORECASE)
+    RE_CAA = re.compile(
+        r'^(?P<flags>[0-9]+)\s+'
+        r'(?P<tag>issue|issuewild|iodef)\s+'
+        r'(?P<value>\S+)$',
+        re.IGNORECASE,
+    )
 
-    RE_POPLINE = re.compile(r'^(?P<name>\S+)\s+(?P<ttl>\d+)\s+'
-                            r'(?P<type>\S+)\s+(?P<value>.*)$',
-                            re.IGNORECASE)
+    RE_POPLINE = re.compile(
+        r'^(?P<name>\S+)\s+(?P<ttl>\d+)\s+' r'(?P<type>\S+)\s+(?P<value>.*)$',
+        re.IGNORECASE,
+    )
 
     SUPPORTS_GEO = False
     SUPPORTS_DYNAMIC = False
-    SUPPORTS = set(('A', 'AAAA', 'ALIAS', 'CNAME', 'MX', 'NS',
-                    'SRV', 'SSHFP', 'CAA', 'TXT'))
+    SUPPORTS = set(
+        (
+            'A',
+            'AAAA',
+            'ALIAS',
+            'CNAME',
+            'MX',
+            'NS',
+            'SRV',
+            'SSHFP',
+            'CAA',
+            'TXT',
+        )
+    )
     BASE = 'https://dnsapi.mythic-beasts.com/'
 
     def __init__(self, identifier, passwords, *args, **kwargs):
@@ -89,7 +113,8 @@ class MythicBeastsProvider(BaseProvider):
         self.log.debug(
             '__init__: id=%s, registered zones; %s',
             identifier,
-            passwords.keys())
+            passwords.keys(),
+        )
         super(MythicBeastsProvider, self).__init__(identifier, *args, **kwargs)
 
         self._passwords = passwords
@@ -97,23 +122,20 @@ class MythicBeastsProvider(BaseProvider):
         self._sess = sess
 
     def _request(self, method, path, data=None):
-        self.log.debug('_request: method=%s, path=%s data=%s',
-                       method, path, data)
+        self.log.debug(
+            '_request: method=%s, path=%s data=%s', method, path, data
+        )
 
         resp = self._sess.request(method, path, data=data)
         self.log.debug(
-            '_request:   status=%d data=%s',
-            resp.status_code,
-            resp.text[:20])
+            '_request:   status=%d data=%s', resp.status_code, resp.text[:20]
+        )
 
         if resp.status_code == 401:
             raise MythicBeastsUnauthorizedException(data['domain'])
 
         if resp.status_code == 400:
-            raise MythicBeastsRecordException(
-                data['domain'],
-                data['command']
-            )
+            raise MythicBeastsRecordException(data['domain'], data['command'])
         resp.raise_for_status()
         return resp
 
@@ -122,45 +144,48 @@ class MythicBeastsProvider(BaseProvider):
 
     def records(self, zone):
         domain = remove_trailing_dot(zone)
-        assert zone in self._passwords, \
-            f'Missing password for domain: {domain}'
+        assert zone in self._passwords, f'Missing password for domain: {domain}'
 
-        return self._post({
-            'domain': domain,
-            'password': self._passwords[zone],
-            'showall': 0,
-            'command': 'LIST',
-        })
+        return self._post(
+            {
+                'domain': domain,
+                'password': self._passwords[zone],
+                'showall': 0,
+                'command': 'LIST',
+            }
+        )
 
     @staticmethod
     def _data_for_single(_type, data):
         return {
             'type': _type,
             'value': data['raw_values'][0]['value'],
-            'ttl': data['raw_values'][0]['ttl']
+            'ttl': data['raw_values'][0]['ttl'],
         }
 
     @staticmethod
     def _data_for_multiple(_type, data):
         return {
             'type': _type,
-            'values':
-                [raw_values['value'] for raw_values in data['raw_values']],
-            'ttl':
-                max([raw_values['ttl'] for raw_values in data['raw_values']]),
+            'values': [
+                raw_values['value'] for raw_values in data['raw_values']
+            ],
+            'ttl': max(
+                [raw_values['ttl'] for raw_values in data['raw_values']]
+            ),
         }
 
     @staticmethod
     def _data_for_TXT(_type, data):
         return {
             'type': _type,
-            'values':
-                [
-                    str(raw_values['value']).replace(';', '\\;')
-                    for raw_values in data['raw_values']
-                ],
-            'ttl':
-                max([raw_values['ttl'] for raw_values in data['raw_values']]),
+            'values': [
+                str(raw_values['value']).replace(';', '\\;')
+                for raw_values in data['raw_values']
+            ],
+            'ttl': max(
+                [raw_values['ttl'] for raw_values in data['raw_values']]
+            ),
         }
 
     @staticmethod
@@ -168,8 +193,9 @@ class MythicBeastsProvider(BaseProvider):
         ttl = max([raw_values['ttl'] for raw_values in data['raw_values']])
         values = []
 
-        for raw_value in \
-                [raw_values['value'] for raw_values in data['raw_values']]:
+        for raw_value in [
+            raw_values['value'] for raw_values in data['raw_values']
+        ]:
             match = MythicBeastsProvider.RE_MX.match(raw_value)
 
             assert match is not None, 'Unable to parse MX data'
@@ -179,16 +205,11 @@ class MythicBeastsProvider(BaseProvider):
             if not exchange.endswith('.'):
                 exchange = f'{exchange}.{data["zone"]}'
 
-            values.append({
-                'preference': match.group('preference'),
-                'exchange': exchange,
-            })
+            values.append(
+                {'preference': match.group('preference'), 'exchange': exchange}
+            )
 
-        return {
-            'type': _type,
-            'values': values,
-            'ttl': ttl,
-        }
+        return {'type': _type, 'values': values, 'ttl': ttl}
 
     @staticmethod
     def _data_for_CNAME(_type, data):
@@ -198,28 +219,25 @@ class MythicBeastsProvider(BaseProvider):
             value = f'{value}.{data["zone"]}'
 
         return MythicBeastsProvider._data_for_single(
-            _type,
-            {'raw_values': [
-                {'value': value, 'ttl': ttl}
-            ]})
+            _type, {'raw_values': [{'value': value, 'ttl': ttl}]}
+        )
 
     @staticmethod
     def _data_for_ANAME(_type, data):
         ttl = data['raw_values'][0]['ttl']
         value = data['raw_values'][0]['value']
         return MythicBeastsProvider._data_for_single(
-            'ALIAS',
-            {'raw_values': [
-                {'value': value, 'ttl': ttl}
-            ]})
+            'ALIAS', {'raw_values': [{'value': value, 'ttl': ttl}]}
+        )
 
     @staticmethod
     def _data_for_SRV(_type, data):
         ttl = max([raw_values['ttl'] for raw_values in data['raw_values']])
         values = []
 
-        for raw_value in \
-                [raw_values['value'] for raw_values in data['raw_values']]:
+        for raw_value in [
+            raw_values['value'] for raw_values in data['raw_values']
+        ]:
 
             match = MythicBeastsProvider.RE_SRV.match(raw_value)
 
@@ -229,41 +247,38 @@ class MythicBeastsProvider(BaseProvider):
             if not target.endswith('.'):
                 target = f'{target}.{data["zone"]}'
 
-            values.append({
-                'priority': match.group('priority'),
-                'weight': match.group('weight'),
-                'port': match.group('port'),
-                'target': target,
-            })
+            values.append(
+                {
+                    'priority': match.group('priority'),
+                    'weight': match.group('weight'),
+                    'port': match.group('port'),
+                    'target': target,
+                }
+            )
 
-        return {
-            'type': _type,
-            'values': values,
-            'ttl': ttl,
-        }
+        return {'type': _type, 'values': values, 'ttl': ttl}
 
     @staticmethod
     def _data_for_SSHFP(_type, data):
         ttl = max([raw_values['ttl'] for raw_values in data['raw_values']])
         values = []
 
-        for raw_value in \
-                [raw_values['value'] for raw_values in data['raw_values']]:
+        for raw_value in [
+            raw_values['value'] for raw_values in data['raw_values']
+        ]:
             match = MythicBeastsProvider.RE_SSHFP.match(raw_value)
 
             assert match is not None, 'Unable to parse SSHFP data'
 
-            values.append({
-                'algorithm': match.group('algorithm'),
-                'fingerprint_type': match.group('fingerprint_type'),
-                'fingerprint': match.group('fingerprint'),
-            })
+            values.append(
+                {
+                    'algorithm': match.group('algorithm'),
+                    'fingerprint_type': match.group('fingerprint_type'),
+                    'fingerprint': match.group('fingerprint'),
+                }
+            )
 
-        return {
-            'type': _type,
-            'values': values,
-            'ttl': ttl,
-        }
+        return {'type': _type, 'values': values, 'ttl': ttl}
 
     @staticmethod
     def _data_for_CAA(_type, data):
@@ -281,26 +296,30 @@ class MythicBeastsProvider(BaseProvider):
         }
 
         return MythicBeastsProvider._data_for_single(
-            'CAA',
-            {'raw_values': [{'value': value, 'ttl': ttl}]})
+            'CAA', {'raw_values': [{'value': value, 'ttl': ttl}]}
+        )
 
     _data_for_NS = _data_for_multiple
     _data_for_A = _data_for_multiple
     _data_for_AAAA = _data_for_multiple
 
     def populate(self, zone, target=False, lenient=False):
-        self.log.debug('populate: name=%s, target=%s, lenient=%s', zone.name,
-                       target, lenient)
+        self.log.debug(
+            'populate: name=%s, target=%s, lenient=%s',
+            zone.name,
+            target,
+            lenient,
+        )
 
         resp = self.records(zone.name)
 
         before = len(zone.records)
         exists = False
-        data = defaultdict(lambda: defaultdict(lambda: {
-            'raw_values': [],
-            'name': None,
-            'zone': None,
-        }))
+        data = defaultdict(
+            lambda: defaultdict(
+                lambda: {'raw_values': [], 'name': None, 'zone': None}
+            )
+        )
 
         exists = True
         for line in resp.content.splitlines():
@@ -342,12 +361,15 @@ class MythicBeastsProvider(BaseProvider):
                     zone,
                     _name,
                     data_for(_type, data[_type][_name]),
-                    source=self
+                    source=self,
                 )
                 zone.add_record(record, lenient=lenient)
 
-        self.log.debug('populate:   found %s records, exists=%s',
-                       len(zone.records) - before, exists)
+        self.log.debug(
+            'populate:   found %s records, exists=%s',
+            len(zone.records) - before,
+            exists,
+        )
 
         return exists
 
@@ -378,8 +400,9 @@ class MythicBeastsProvider(BaseProvider):
             algorithm = data['algorithm']
             fingerprint_type = data['fingerprint_type']
             fingerprint = data['fingerprint']
-            commands.append(f'{base} {algorithm} {fingerprint_type} '
-                            f'{fingerprint}')
+            commands.append(
+                f'{base} {algorithm} {fingerprint_type} ' f'{fingerprint}'
+            )
 
         elif _type == 'SRV':
             for value in values:
@@ -411,12 +434,14 @@ class MythicBeastsProvider(BaseProvider):
         commands = self._compile_commands('ADD', change.new)
 
         for command in commands:
-            self._post({
-                'domain': remove_trailing_dot(zone.name),
-                'origin': '.',
-                'password': self._passwords[zone.name],
-                'command': command,
-            })
+            self._post(
+                {
+                    'domain': remove_trailing_dot(zone.name),
+                    'origin': '.',
+                    'password': self._passwords[zone.name],
+                    'command': command,
+                }
+            )
         return True
 
     def _apply_Update(self, change):
@@ -428,19 +453,22 @@ class MythicBeastsProvider(BaseProvider):
         commands = self._compile_commands('DELETE', change.existing)
 
         for command in commands:
-            self._post({
-                'domain': remove_trailing_dot(zone.name),
-                'origin': '.',
-                'password': self._passwords[zone.name],
-                'command': command,
-            })
+            self._post(
+                {
+                    'domain': remove_trailing_dot(zone.name),
+                    'origin': '.',
+                    'password': self._passwords[zone.name],
+                    'command': command,
+                }
+            )
         return True
 
     def _apply(self, plan):
         desired = plan.desired
         changes = plan.changes
-        self.log.debug('_apply: zone=%s, len(changes)=%d', desired.name,
-                       len(changes))
+        self.log.debug(
+            '_apply: zone=%s, len(changes)=%d', desired.name, len(changes)
+        )
 
         for change in changes:
             class_name = change.__class__.__name__
