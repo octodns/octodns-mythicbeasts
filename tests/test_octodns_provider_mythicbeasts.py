@@ -11,14 +11,16 @@ from octodns.provider.yaml import YamlProvider
 from octodns.zone import Zone
 from octodns.record import Create, Update, Delete, Record
 
-from octodns_mythicbeasts import MythicBeastsProvider, \
-    add_trailing_dot, remove_trailing_dot
+from octodns_mythicbeasts import (
+    MythicBeastsProvider,
+    add_trailing_dot,
+    remove_trailing_dot,
+)
 
 
 class TestMythicBeastsProvider(TestCase):
     expected = Zone('unit.tests.', [])
-    source = YamlProvider('test_expected',
-                          join(dirname(__file__), 'config'))
+    source = YamlProvider('test_expected', join(dirname(__file__), 'config'))
     source.populate(expected)
 
     # Dump anything we don't support from expected
@@ -29,13 +31,13 @@ class TestMythicBeastsProvider(TestCase):
     def test_trailing_dot(self):
         with self.assertRaises(AssertionError) as err:
             add_trailing_dot('unit.tests.')
-        self.assertEqual('Value already has trailing dot',
-                         str(err.exception))
+        self.assertEqual('Value already has trailing dot', str(err.exception))
 
         with self.assertRaises(AssertionError) as err:
             remove_trailing_dot('unit.tests')
-        self.assertEqual('Value already missing trailing dot',
-                         str(err.exception))
+        self.assertEqual(
+            'Value already missing trailing dot', str(err.exception)
+        )
 
         self.assertEqual(add_trailing_dot('unit.tests'), 'unit.tests.')
         self.assertEqual(remove_trailing_dot('unit.tests.'), 'unit.tests')
@@ -53,7 +55,8 @@ class TestMythicBeastsProvider(TestCase):
         test_data = {
             'raw_values': [
                 {'value': 'b:b::d', 'ttl': 60},
-                {'value': 'a:a::c', 'ttl': 60}],
+                {'value': 'a:a::c', 'ttl': 60},
+            ],
             'zone': 'unit.tests.',
         }
         test_multiple = MythicBeastsProvider._data_for_multiple('', test_data)
@@ -64,7 +67,8 @@ class TestMythicBeastsProvider(TestCase):
         test_data = {
             'raw_values': [
                 {'value': 'v=DKIM1; k=rsa; p=prawf', 'ttl': 60},
-                {'value': 'prawf prawf dyma prawf', 'ttl': 300}],
+                {'value': 'prawf prawf dyma prawf', 'ttl': 300},
+            ],
             'zone': 'unit.tests.',
         }
         test_txt = MythicBeastsProvider._data_for_TXT('', test_data)
@@ -77,7 +81,8 @@ class TestMythicBeastsProvider(TestCase):
             'raw_values': [
                 {'value': '10 un.unit', 'ttl': 60},
                 {'value': '20 dau.unit', 'ttl': 60},
-                {'value': '30 tri.unit', 'ttl': 60}],
+                {'value': '30 tri.unit', 'ttl': 60},
+            ],
             'zone': 'unit.tests.',
         }
         test_MX = MythicBeastsProvider._data_for_MX('', test_data)
@@ -86,8 +91,7 @@ class TestMythicBeastsProvider(TestCase):
 
         with self.assertRaises(AssertionError) as err:
             test_MX = MythicBeastsProvider._data_for_MX(
-                '',
-                {'raw_values': [{'value': '', 'ttl': 0}]}
+                '', {'raw_values': [{'value': '', 'ttl': 0}]}
             )
         self.assertEqual('Unable to parse MX data', str(err.exception))
 
@@ -114,7 +118,8 @@ class TestMythicBeastsProvider(TestCase):
             'raw_values': [
                 {'value': '10 20 30 un.srv.unit', 'ttl': 60},
                 {'value': '20 30 40 dau.srv.unit', 'ttl': 60},
-                {'value': '30 30 50 tri.srv.unit', 'ttl': 60}],
+                {'value': '30 30 50 tri.srv.unit', 'ttl': 60},
+            ],
             'zone': 'unit.tests.',
         }
         test_SRV = MythicBeastsProvider._data_for_SRV('', test_data)
@@ -123,8 +128,7 @@ class TestMythicBeastsProvider(TestCase):
 
         with self.assertRaises(AssertionError) as err:
             test_SRV = MythicBeastsProvider._data_for_SRV(
-                '',
-                {'raw_values': [{'value': '', 'ttl': 0}]}
+                '', {'raw_values': [{'value': '', 'ttl': 0}]}
             )
         self.assertEqual('Unable to parse SRV data', str(err.exception))
 
@@ -133,7 +137,8 @@ class TestMythicBeastsProvider(TestCase):
             'raw_values': [
                 {'value': '1 1 0123456789abcdef', 'ttl': 60},
                 {'value': '1 2 0123456789abcdef', 'ttl': 60},
-                {'value': '2 3 0123456789abcdef', 'ttl': 60}],
+                {'value': '2 3 0123456789abcdef', 'ttl': 60},
+            ],
             'zone': 'unit.tests.',
         }
         test_SSHFP = MythicBeastsProvider._data_for_SSHFP('', test_data)
@@ -142,8 +147,7 @@ class TestMythicBeastsProvider(TestCase):
 
         with self.assertRaises(AssertionError) as err:
             test_SSHFP = MythicBeastsProvider._data_for_SSHFP(
-                '',
-                {'raw_values': [{'value': '', 'ttl': 0}]}
+                '', {'raw_values': [{'value': '', 'ttl': 0}]}
             )
         self.assertEqual('Unable to parse SSHFP data', str(err.exception))
 
@@ -158,59 +162,72 @@ class TestMythicBeastsProvider(TestCase):
 
         with self.assertRaises(AssertionError) as err:
             test_CAA = MythicBeastsProvider._data_for_CAA(
-                '',
-                {'raw_values': [{'value': '', 'ttl': 0}]}
+                '', {'raw_values': [{'value': '', 'ttl': 0}]}
             )
         self.assertEqual('Unable to parse CAA data', str(err.exception))
 
     def test_command_generation(self):
         zone = Zone('unit.tests.', [])
-        zone.add_record(Record.new(zone, '', {
-            'ttl': 60,
-            'type': 'ALIAS',
-            'value': 'alias.unit.tests.',
-        }))
-        zone.add_record(Record.new(zone, 'prawf-ns', {
-            'ttl': 300,
-            'type': 'NS',
-            'values': [
-                'alias.unit.tests.',
-                'alias2.unit.tests.',
-            ],
-        }))
-        zone.add_record(Record.new(zone, 'prawf-a', {
-            'ttl': 60,
-            'type': 'A',
-            'values': [
-                '1.2.3.4',
-                '5.6.7.8',
-            ],
-        }))
-        zone.add_record(Record.new(zone, 'prawf-aaaa', {
-            'ttl': 60,
-            'type': 'AAAA',
-            'values': [
-                'a:a::a',
-                'b:b::b',
-                'c:c::c:c',
-            ],
-        }))
-        zone.add_record(Record.new(zone, 'prawf-txt', {
-            'ttl': 60,
-            'type': 'TXT',
-            'value': 'prawf prawf dyma prawf',
-        }))
-        zone.add_record(Record.new(zone, 'prawf-txt2', {
-            'ttl': 60,
-            'type': 'TXT',
-            'value': 'v=DKIM1\\; k=rsa\\; p=prawf',
-        }))
+        zone.add_record(
+            Record.new(
+                zone,
+                '',
+                {'ttl': 60, 'type': 'ALIAS', 'value': 'alias.unit.tests.'},
+            )
+        )
+        zone.add_record(
+            Record.new(
+                zone,
+                'prawf-ns',
+                {
+                    'ttl': 300,
+                    'type': 'NS',
+                    'values': ['alias.unit.tests.', 'alias2.unit.tests.'],
+                },
+            )
+        )
+        zone.add_record(
+            Record.new(
+                zone,
+                'prawf-a',
+                {'ttl': 60, 'type': 'A', 'values': ['1.2.3.4', '5.6.7.8']},
+            )
+        )
+        zone.add_record(
+            Record.new(
+                zone,
+                'prawf-aaaa',
+                {
+                    'ttl': 60,
+                    'type': 'AAAA',
+                    'values': ['a:a::a', 'b:b::b', 'c:c::c:c'],
+                },
+            )
+        )
+        zone.add_record(
+            Record.new(
+                zone,
+                'prawf-txt',
+                {'ttl': 60, 'type': 'TXT', 'value': 'prawf prawf dyma prawf'},
+            )
+        )
+        zone.add_record(
+            Record.new(
+                zone,
+                'prawf-txt2',
+                {
+                    'ttl': 60,
+                    'type': 'TXT',
+                    'value': 'v=DKIM1\\; k=rsa\\; p=prawf',
+                },
+            )
+        )
         with requests_mock() as mock:
             mock.post(ANY, status_code=200, text='')
 
-            provider = MythicBeastsProvider('test', {
-                'unit.tests.': 'mypassword'
-            })
+            provider = MythicBeastsProvider(
+                'test', {'unit.tests.': 'mypassword'}
+            )
 
             plan = provider.plan(zone)
             changes = plan.changes
@@ -237,15 +254,14 @@ class TestMythicBeastsProvider(TestCase):
             generated_commands.sort()
             expected_commands.sort()
 
-            self.assertEqual(
-                generated_commands,
-                expected_commands
-            )
+            self.assertEqual(generated_commands, expected_commands)
 
             # Now test deletion
-            existing = 'prawf-txt 300 TXT prawf prawf dyma prawf\n' \
-                'prawf-txt2 300 TXT v=DKIM1; k=rsa; p=prawf\n' \
+            existing = (
+                'prawf-txt 300 TXT prawf prawf dyma prawf\n'
+                'prawf-txt2 300 TXT v=DKIM1; k=rsa; p=prawf\n'
                 'prawf-a 60 A 1.2.3.4'
+            )
 
             with requests_mock() as mock:
                 mock.post(ANY, status_code=200, text=existing)
@@ -269,10 +285,7 @@ class TestMythicBeastsProvider(TestCase):
             generated_commands.sort()
             expected_commands.sort()
 
-            self.assertEqual(
-                generated_commands,
-                expected_commands
-            )
+            self.assertEqual(generated_commands, expected_commands)
 
     def test_fake_command_generation(self):
         class FakeChangeRecord(object):
@@ -293,9 +306,9 @@ class TestMythicBeastsProvider(TestCase):
         with requests_mock() as mock:
             mock.post(ANY, status_code=200, text='')
 
-            provider = MythicBeastsProvider('test', {
-                'unit.tests.': 'mypassword'
-            })
+            provider = MythicBeastsProvider(
+                'test', {'unit.tests.': 'mypassword'}
+            )
             record = FakeChangeRecord()
             command = provider._compile_commands('ADD', record)
             self.assertEqual([], command)
@@ -316,31 +329,33 @@ class TestMythicBeastsProvider(TestCase):
                 provider = MythicBeastsProvider('test', dict())
                 zone = Zone('unit.tests.', [])
                 provider.populate(zone)
-            self.assertEqual('Missing password for domain: unit.tests',
-                             str(err.exception))
+            self.assertEqual(
+                'Missing password for domain: unit.tests', str(err.exception)
+            )
 
         # Failed authentication
         with requests_mock() as mock:
             mock.post(ANY, status_code=401, text='ERR Not authenticated')
 
             with self.assertRaises(Exception) as err:
-                provider = MythicBeastsProvider('test', {
-                    'unit.tests.': 'mypassword'
-                })
+                provider = MythicBeastsProvider(
+                    'test', {'unit.tests.': 'mypassword'}
+                )
                 zone = Zone('unit.tests.', [])
                 provider.populate(zone)
             self.assertEqual(
                 'Mythic Beasts unauthorized for zone: unit.tests',
-                err.exception.message)
+                err.exception.message,
+            )
 
         # Check unmatched lines are ignored
         test_data = 'This should not match'
         with requests_mock() as mock:
             mock.post(ANY, status_code=200, text=test_data)
 
-            provider = MythicBeastsProvider('test', {
-                'unit.tests.': 'mypassword'
-            })
+            provider = MythicBeastsProvider(
+                'test', {'unit.tests.': 'mypassword'}
+            )
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
             self.assertEqual(0, len(zone.records))
@@ -350,9 +365,9 @@ class TestMythicBeastsProvider(TestCase):
         with requests_mock() as mock:
             mock.post(ANY, status_code=200, text=test_data)
 
-            provider = MythicBeastsProvider('test', {
-                'unit.tests.': 'mypassword'
-            })
+            provider = MythicBeastsProvider(
+                'test', {'unit.tests.': 'mypassword'}
+            )
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
             self.assertEqual(0, len(zone.records))
@@ -364,9 +379,9 @@ class TestMythicBeastsProvider(TestCase):
             with open('tests/fixtures/mythicbeasts-list.txt') as file_handle:
                 mock.post(ANY, status_code=200, text=file_handle.read())
 
-            provider = MythicBeastsProvider('test', {
-                'unit.tests.': 'mypassword'
-            })
+            provider = MythicBeastsProvider(
+                'test', {'unit.tests.': 'mypassword'}
+            )
             zone = Zone('unit.tests.', [])
             provider.populate(zone)
 
@@ -376,9 +391,7 @@ class TestMythicBeastsProvider(TestCase):
             self.assertEqual(0, len(changes))
 
     def test_apply(self):
-        provider = MythicBeastsProvider('test', {
-            'unit.tests.': 'mypassword'
-        })
+        provider = MythicBeastsProvider('test', {'unit.tests.': 'mypassword'})
         zone = Zone('unit.tests.', [])
 
         # Create blank zone
@@ -392,11 +405,11 @@ class TestMythicBeastsProvider(TestCase):
         with requests_mock() as mock:
             mock.post(ANY, status_code=200, text='')
             provider.populate(zone)
-            zone.add_record(Record.new(zone, 'prawf', {
-                'ttl': 300,
-                'type': 'TXT',
-                'value': 'prawf',
-            }))
+            zone.add_record(
+                Record.new(
+                    zone, 'prawf', {'ttl': 300, 'type': 'TXT', 'value': 'prawf'}
+                )
+            )
             plan = provider.plan(zone)
 
         with requests_mock() as mock:
@@ -406,7 +419,9 @@ class TestMythicBeastsProvider(TestCase):
                 provider.apply(plan)
             self.assertEqual(
                 'Mythic Beasts could not action command: unit.tests '
-                'ADD prawf.unit.tests 300 TXT prawf', err.exception.message)
+                'ADD prawf.unit.tests 300 TXT prawf',
+                err.exception.message,
+            )
 
         # Check deleting and adding/changing test record
         existing = 'prawf 300 TXT prawf prawf prawf\ndileu 300 TXT dileu'
@@ -424,20 +439,25 @@ class TestMythicBeastsProvider(TestCase):
                 data.update(record.data)
                 wanted.add_record(Record.new(wanted, record.name, data))
 
-            wanted.add_record(Record.new(wanted, 'prawf', {
-                'ttl': 60,
-                'type': 'TXT',
-                'value': 'prawf yw e',
-            }))
+            wanted.add_record(
+                Record.new(
+                    wanted,
+                    'prawf',
+                    {'ttl': 60, 'type': 'TXT', 'value': 'prawf yw e'},
+                )
+            )
 
             plan = provider.plan(wanted)
 
             # Octo ignores NS records (15-1)
-            self.assertEqual(1, len([c for c in plan.changes
-                                     if isinstance(c, Update)]))
-            self.assertEqual(1, len([c for c in plan.changes
-                                     if isinstance(c, Delete)]))
-            self.assertEqual(16, len([c for c in plan.changes
-                                      if isinstance(c, Create)]))
+            self.assertEqual(
+                1, len([c for c in plan.changes if isinstance(c, Update)])
+            )
+            self.assertEqual(
+                1, len([c for c in plan.changes if isinstance(c, Delete)])
+            )
+            self.assertEqual(
+                16, len([c for c in plan.changes if isinstance(c, Create)])
+            )
             self.assertEqual(18, provider.apply(plan))
             self.assertTrue(plan.exists)
