@@ -38,9 +38,7 @@ class MythicBeastsUnauthorizedException(ProviderException):
         self.zone = zone
         self.message = f'Mythic Beasts unauthorized for zone: {self.zone}'
 
-        super(MythicBeastsUnauthorizedException, self).__init__(
-            self.message, self.zone, *args
-        )
+        super().__init__(self.message, self.zone, *args)
 
 
 class MythicBeastsRecordException(ProviderException):
@@ -52,9 +50,7 @@ class MythicBeastsRecordException(ProviderException):
             f'{self.zone} {self.command}'
         )
 
-        super(MythicBeastsRecordException, self).__init__(
-            self.message, self.zone, self.command, *args
-        )
+        super().__init__(self.message, self.zone, self.command, *args)
 
 
 class MythicBeastsProvider(BaseProvider):
@@ -115,7 +111,7 @@ class MythicBeastsProvider(BaseProvider):
             identifier,
             passwords.keys(),
         )
-        super(MythicBeastsProvider, self).__init__(identifier, *args, **kwargs)
+        super().__init__(identifier, *args, **kwargs)
 
         self._passwords = passwords
         sess = Session()
