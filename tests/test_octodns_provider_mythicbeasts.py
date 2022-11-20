@@ -391,7 +391,9 @@ class TestMythicBeastsProvider(TestCase):
             self.assertEqual(0, len(changes))
 
     def test_apply(self):
-        provider = MythicBeastsProvider('test', {'unit.tests.': 'mypassword'})
+        provider = MythicBeastsProvider(
+            'test', {'unit.tests.': 'mypassword'}, strict_supports=False
+        )
         zone = Zone('unit.tests.', [])
 
         # Create blank zone
