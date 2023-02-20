@@ -8,6 +8,7 @@ from logging import getLogger
 
 from requests import Session
 
+from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 from octodns.record import Record
@@ -115,6 +116,11 @@ class MythicBeastsProvider(BaseProvider):
 
         self._passwords = passwords
         sess = Session()
+        sess.headers.update(
+            {
+                'User-Agent': f'octodns/{octodns_version} octodns-gcore/{__VERSION__}'
+            }
+        )
         self._sess = sess
 
     def _request(self, method, path, data=None):
