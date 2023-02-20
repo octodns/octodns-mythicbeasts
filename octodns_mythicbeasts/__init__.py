@@ -118,7 +118,7 @@ class MythicBeastsProvider(BaseProvider):
         sess = Session()
         sess.headers.update(
             {
-                'User-Agent': f'octodns/{octodns_version} octodns-gcore/{__VERSION__}'
+                'User-Agent': f'octodns/{octodns_version} octodns-mythicbeasts/{__VERSION__}'
             }
         )
         self._sess = sess
