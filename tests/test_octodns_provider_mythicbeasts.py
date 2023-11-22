@@ -460,7 +460,7 @@ class TestMythicBeastsProvider(TestCase):
                 1, len([c for c in plan.changes if isinstance(c, Delete)])
             )
             self.assertEqual(
-                16, len([c for c in plan.changes if isinstance(c, Create)])
+                14, len([c for c in plan.changes if isinstance(c, Create)])
             )
-            self.assertEqual(18, provider.apply(plan))
+            self.assertEqual(16, provider.apply(plan))
             self.assertTrue(plan.exists)
