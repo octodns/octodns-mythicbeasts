@@ -440,6 +440,7 @@ class TestMythicBeastsProvider(TestCase):
             for record in list(self.expected.records):
                 data = {'type': record._type}
                 data.update(record.data)
+                data.pop('octodns', None)
                 wanted.add_record(Record.new(wanted, record.name, data))
 
             wanted.add_record(
