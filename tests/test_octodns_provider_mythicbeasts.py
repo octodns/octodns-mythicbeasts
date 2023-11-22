@@ -440,6 +440,7 @@ class TestMythicBeastsProvider(TestCase):
             for record in list(self.expected.records):
                 data = {'type': record._type}
                 data.update(record.data)
+                data.pop('octodns', None)
                 wanted.add_record(Record.new(wanted, record.name, data))
 
             wanted.add_record(
@@ -460,7 +461,7 @@ class TestMythicBeastsProvider(TestCase):
                 1, len([c for c in plan.changes if isinstance(c, Delete)])
             )
             self.assertEqual(
-                14, len([c for c in plan.changes if isinstance(c, Create)])
+                16, len([c for c in plan.changes if isinstance(c, Create)])
             )
-            self.assertEqual(16, provider.apply(plan))
+            self.assertEqual(18, provider.apply(plan))
             self.assertTrue(plan.exists)
