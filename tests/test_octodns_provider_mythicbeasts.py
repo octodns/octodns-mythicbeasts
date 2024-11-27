@@ -27,7 +27,7 @@ class TestMythicBeastsProvider(TestCase):
     # Dump anything we don't support from expected
     for record in list(expected.records):
         if record._type not in MythicBeastsProvider.SUPPORTS:
-            expected._remove_record(record)
+            expected.remove_record(record)
 
     def test_trailing_dot(self):
         with self.assertRaises(AssertionError) as err:

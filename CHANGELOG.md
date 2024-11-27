@@ -1,3 +1,7 @@
+## v0.0.2 - 20??-??-?? - ???
+
+* Address pending octoDNS 2.x deprecations, require minimum of 1.5.x
+
 ## v0.0.1 - 2022-01-12 - Moving
 
 #### Nothworthy Changes
