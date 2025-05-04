@@ -1,4 +1,4 @@
-## v0.0.2 - 20??-??-?? - ???
+## v1.0.0 - 2025-05-04 - 1.0
 
 * Address pending octoDNS 2.x deprecations, require minimum of 1.5.x
 
