@@ -364,6 +364,7 @@ class MythicBeastsProvider(BaseProvider):
                     _name,
                     data_for(_type, data[_type][_name]),
                     source=self,
+                    lenient=lenient
                 )
                 zone.add_record(record, lenient=lenient)
 
