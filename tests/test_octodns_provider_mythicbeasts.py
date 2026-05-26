@@ -21,7 +21,11 @@ from octodns_mythicbeasts import (
 
 class TestMythicBeastsProvider(TestCase):
     expected = Zone('unit.tests.', [])
-    source = YamlProvider('test_expected', join(dirname(__file__), 'config'))
+    source = YamlProvider(
+        'test_expected',
+        join(dirname(__file__), 'config'),
+        escaped_semicolons=False,
+    )
     source.populate(expected)
 
     # Dump anything we don't support from expected
