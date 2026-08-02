@@ -1,10 +1,6 @@
-#
-#
-#
-
-from ast import Dict
-from collections import defaultdict
+from collections.abc import Callable
 from logging import getLogger
+from typing import ClassVar
 
 from requests import HTTPError, Session
 
@@ -16,31 +12,28 @@ from octodns.record import Change, Record
 from octodns.zone import Zone
 
 # TODO: remove __VERSION__ with the next major version release
-__version__ = __VERSION__ = '2.0.0'
+__version__ = __VERSION__ = "2.0.0"
 
 
 class MythicBeastsProvider(BaseProvider):
-
     SUPPORTS_ROOT_NS = True
     SUPPORTS_GEO = False
     SUPPORTS_DYNAMIC = False
-    SUPPORTS = set(
-        (
-            'A',
-            'AAAA',
-            'ALIAS',
-            'CNAME',
-            'MX',
-            'NS',
-            'SRV',
-            'SSHFP',
-            'CAA',
-            'TXT',
-        )
-    )
+    SUPPORTS: ClassVar[set[str]] = {
+        "A",
+        "AAAA",
+        "ALIAS",
+        "CNAME",
+        "MX",
+        "NS",
+        "SRV",
+        "SSHFP",
+        "CAA",
+        "TXT",
+    }
 
     MB_API_AUTH_URL: str = "https://auth.mythic-beasts.com/"
-    MB_API_BASE_URL: str = 'https://api.mythic-beasts.com/dns/v2/'
+    MB_API_BASE_URL: str = "https://api.mythic-beasts.com/dns/v2/"
 
     def _request(
         self,
@@ -53,9 +46,9 @@ class MythicBeastsProvider(BaseProvider):
         json_response=True,
         auth=None,
     ):
-        self.log.debug('_request: method=%s, path=%s', method, path)
+        self.log.debug("_request: method=%s, path=%s", method, path)
 
-        url = f'{url}{path}'
+        url: str = f"{url}{path}"
         resp = self._sess.request(
             method,
             url,
@@ -65,21 +58,15 @@ class MythicBeastsProvider(BaseProvider):
             timeout=self._timeout,
             auth=auth,
         )
-        self.log.debug('_request:   status=%d', resp.status_code)
+        self.log.debug("_request:   status=%d", resp.status_code)
 
         if resp.status_code == 401:
-            raise MythicBeastsClientUnauthorized()
+            raise ProviderException(
+                "Authentication failed for Mythic Beasts API, check your API key and secret"
+            )
 
         if json_response:
             payload = resp.json()
-
-            # Expected return value when no zones exist in an account
-            if (
-                resp.status_code == 404
-                and len(payload) == 1
-                and payload[0]['errorCode'] == 70002
-            ):
-                raise MythicBeastsZoneDoesNotExistError(resp)
         else:
             payload = resp.text
         try:
@@ -97,43 +84,40 @@ class MythicBeastsProvider(BaseProvider):
         return payload
 
     def _get(self, path, **kwargs):
-        return self._request('GET', path, **kwargs)
+        return self._request("GET", path, **kwargs)
 
     def _post(self, path, **kwargs):
-        return self._request('POST', path, **kwargs)
+        return self._request("POST", path, **kwargs)
 
     def _delete(self, path, **kwargs):
-        return self._request('DELETE', path, **kwargs)
+        return self._request("DELETE", path, **kwargs)
 
     def _put(self, path, **kwargs):
-        return self._request('PUT', path, **kwargs)
+        return self._request("PUT", path, **kwargs)
 
     def _patch(self, path, **kwargs):
-        return self._request('PATCH', path, **kwargs)
+        return self._request("PATCH", path, **kwargs)
 
     def _login(self, api_key, api_secret):
-        '''
+        """
         Use the Mythic Beasts Auth Service to retrieve an access token.
-        '''
+        """
         resp = self._post(
             url=self.MB_API_AUTH_URL,
             path="login",
             json_response=True,
-            data={'grant_type': 'client_credentials'},
+            data={"grant_type": "client_credentials"},
             auth=(api_key, api_secret),
         )
 
         self._sess.headers.update(
-            {'Authorization': f'Bearer {resp["access_token"]}'}
+            {"Authorization": f"Bearer {resp['access_token']}"}
         )
 
     def __init__(self, id, api_key, api_secret, *args, **kwargs):
-        self.log = getLogger(f'MythicBeastsProvider[{id}]')
+        self.log = getLogger(f"MythicBeastsProvider[{id}]")
         self.log.debug(
-            '__init__: id=%s, api_key=%s, api_secret=***',
-            id,
-            api_key,
-            api_secret,
+            "__init__: id=%s, api_key=%s, api_secret=***", id, api_key
         )
 
         super().__init__(id, *args, **kwargs)
@@ -141,12 +125,12 @@ class MythicBeastsProvider(BaseProvider):
         self._sess = Session()
         self._sess.headers.update(
             {
-                'User-Agent': f'octodns/{octodns_version} octodns-ultra/{__VERSION__}'
+                "User-Agent": f"octodns/{octodns_version} octodns-mythicbeasts/{__VERSION__}"
             }
         )
         self._api_key = api_key
         self._api_secret = api_secret
-        self._timeout = kwargs.get('timeout', 30)
+        self._timeout = kwargs.get("timeout", 30)
 
         self._zones: dict[str, dict] = {}
         self._zone_records: dict[str, dict] = {}
@@ -156,17 +140,14 @@ class MythicBeastsProvider(BaseProvider):
     @property
     def zones(self):
         if not self._zones:
-            zone_response: list[dict] = self._get(
-                path='zones', json_response=True
-            )
+            zone_response: dict = self._get(path="zones", json_response=True)
 
-            zone_list: list[str] = zone_response.get('zones', [])
+            zone_list: list[str] = zone_response.get("zones", [])
 
             for zone in zone_list:
-
                 zone_name: str = _normalise_zone_name(zone)
 
-                self._zones[zone_name] = {'name': zone_name}
+                self._zones[zone_name] = {"name": zone_name}
         return self._zones
 
     def zone_records(self, zone: Zone) -> list[dict]:
@@ -174,22 +155,18 @@ class MythicBeastsProvider(BaseProvider):
             if zone.name not in self.zones:
                 return []
 
-            records = []
-
-            record_response: list[dict] = self._get(
-                path=f'zones/{zone.name.removesuffix(".")}/records',
+            record_response: dict = self._get(
+                path=f"zones/{zone.name.removesuffix('.')}/records",
                 json_response=True,
-                params={'exclude-generated': 'true'},
+                params={"exclude-generated": "true"},
             )
 
             record_response_list: list[dict] = record_response.get(
-                'records', []
+                "records", []
             )
+            records = list(record_response_list)
 
             self._zone_records[zone.name] = records
-
-            for record in record_response_list:
-                records.append(record)
 
         return self._zone_records[zone.name]
 
@@ -202,7 +179,7 @@ class MythicBeastsProvider(BaseProvider):
         lenient: bool,
     ) -> Record:
         data_for: Callable[[str, list[dict]], dict] = getattr(
-            self, f'_data_for_{_type}'
+            self, f"_data_for_{_type}"
         )
         data: dict | list = data_for(_type, records)
         record: Record = Record.new(
@@ -212,26 +189,26 @@ class MythicBeastsProvider(BaseProvider):
 
     def _data_for_multiple(self, _type, records: list[dict]) -> dict:
         return {
-            'ttl': records[0].get('ttl'),
-            'type': _type,
-            'values': [record.get('data') for record in records],
+            "ttl": records[0].get("ttl"),
+            "type": _type,
+            "values": [record.get("data") for record in records],
         }
 
     def _data_for_single(self, _type, records: list[dict]) -> dict:
         return {
-            'ttl': records[0].get('ttl'),
-            'type': _type,
-            'value': records[0].get('data'),
+            "ttl": records[0].get("ttl"),
+            "type": _type,
+            "value": records[0].get("data"),
         }
 
     def _data_for_MX(self, _type, records: list[dict]) -> dict:
         return {
-            'ttl': records[0].get('ttl'),
-            'type': _type,
-            'values': [
+            "ttl": records[0].get("ttl"),
+            "type": _type,
+            "values": [
                 {
-                    'exchange': record.get('data'),
-                    'preference': record.get('mx_priority'),
+                    "exchange": record.get("data"),
+                    "preference": record.get("mx_priority"),
                 }
                 for record in records
             ],
@@ -239,14 +216,14 @@ class MythicBeastsProvider(BaseProvider):
 
     def _data_for_SRV(self, _type, records: list[dict]) -> dict:
         return {
-            'ttl': records[0].get('ttl'),
-            'type': _type,
-            'values': [
+            "ttl": records[0].get("ttl"),
+            "type": _type,
+            "values": [
                 {
-                    'target': record.get('data'),
-                    'priority': record.get('srv_priority'),
-                    'weight': record.get('srv_weight'),
-                    'port': record.get('srv_port'),
+                    "target": record.get("data"),
+                    "priority": record.get("srv_priority"),
+                    "weight": record.get("srv_weight"),
+                    "port": record.get("srv_port"),
                 }
                 for record in records
             ],
@@ -261,7 +238,7 @@ class MythicBeastsProvider(BaseProvider):
 
     def populate(self, zone, target=False, lenient=False):
         self.log.debug(
-            'populate: name=%s, target=%s, lenient=%s',
+            "populate: name=%s, target=%s, lenient=%s",
             zone.name,
             target,
             lenient,
@@ -275,15 +252,15 @@ class MythicBeastsProvider(BaseProvider):
             exists = True
             values: dict[str, dict[str, list[dict]]] = {}
             for record in records:
-                record_name: str = _normalise_record_name(record.get('host'))
-                record_type: str = record.get('type')
+                record_name: str = _normalise_record_name(record["host"])
+                record_type: str = record["type"]
 
-                if record_type == 'ANAME':
-                    record_type = 'ALIAS'
+                if record_type == "ANAME":
+                    record_type = "ALIAS"
 
                 if record_type == "SOA":
                     self.log.info(
-                        'populate:   skipping SOA record for %s', record_name
+                        "populate:   skipping SOA record for %s", record_name
                     )
                     continue
 
@@ -292,8 +269,7 @@ class MythicBeastsProvider(BaseProvider):
                         raise KeyError
                 except KeyError:
                     self.log.warning(
-                        'populate: ignoring record with '
-                        'unsupported rrtype, %s  %s',
+                        "populate: ignoring record with unsupported rrtype, %s  %s",
                         record_name,
                         record_type,
                     )
@@ -311,7 +287,7 @@ class MythicBeastsProvider(BaseProvider):
                     zone.add_record(record, lenient=lenient)
 
         self.log.info(
-            'populate:   found %s records, exists=%s',
+            "populate:   found %s records, exists=%s",
             len(zone.records) - before_length,
             exists,
         )
@@ -322,30 +298,27 @@ class MythicBeastsProvider(BaseProvider):
         changes: list[Change] = plan.changes
 
         self.log.debug(
-            '_apply: zone=%s, len(changes)=%d', desired.name, len(changes)
+            "_apply: zone=%s, len(changes)=%d", desired.name, len(changes)
         )
 
         name = desired.name
         print(f"name: {name}")
-        created = False
 
         # Mythic Beasts do not support creating zones via the API.
         if name not in self.zones:
             self.log.error(
-                '_apply: zone %s does not exist in Mythic Beasts, '
-                'cannot create via API',
+                "_apply: zone %s does not exist in Mythic Beasts, "
+                "cannot create via API",
                 name,
             )
             raise KeyError(
-                f'zone {name} does not exist in Mythic Beasts account, '
-                'please create the zone manually in the Mythic Beasts control panel'
+                f"zone {name} does not exist in Mythic Beasts account, "
+                "please create the zone manually in the Mythic Beasts control panel"
             )
-
-        meta = getattr(plan, 'meta', None)
 
         for change in changes:
             class_name: str = change.__class__.__name__
-            getattr(self, f'_apply_{class_name}')(change)
+            getattr(self, f"_apply_{class_name}")(change)
 
         # Clear the cache
         self._zone_records.pop(name, None)
@@ -354,12 +327,12 @@ class MythicBeastsProvider(BaseProvider):
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
         contents: dict[str, list] = {
-            'records': [
+            "records": [
                 {
-                    'host': record_name,
-                    'type': record_type,
-                    'ttl': record.ttl,
-                    'data': record.value,
+                    "host": record_name,
+                    "type": record_type,
+                    "ttl": record.ttl,
+                    "data": record.value,
                 }
             ]
         }
@@ -370,30 +343,30 @@ class MythicBeastsProvider(BaseProvider):
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
         contents: dict[str, list] = {
-            'records': [
+            "records": [
                 {
-                    'host': record_name,
-                    'type': record_type,
-                    'ttl': record.ttl,
-                    'data': value,
+                    "host": record_name,
+                    "type": record_type,
+                    "ttl": record.ttl,
+                    "data": value,
                 }
                 for value in record.values
             ]
         }
 
         # Add the MX priority to the contents for MX records
-        if record_type == 'MX':
+        if record_type == "MX":
             for i, value in enumerate(record.values):
-                contents['records'][i]['mx_priority'] = value['preference']
-                contents['records'][i]['data'] = value['exchange']
+                contents["records"][i]["mx_priority"] = value["preference"]
+                contents["records"][i]["data"] = value["exchange"]
 
         # Add the SRV priority, weight, and port to the contents for SRV records
-        if record_type == 'SRV':
+        if record_type == "SRV":
             for i, value in enumerate(record.values):
-                contents['records'][i]['srv_priority'] = value['priority']
-                contents['records'][i]['srv_weight'] = value['weight']
-                contents['records'][i]['srv_port'] = value['port']
-                contents['records'][i]['data'] = value['target']
+                contents["records"][i]["srv_priority"] = value["priority"]
+                contents["records"][i]["srv_weight"] = value["weight"]
+                contents["records"][i]["srv_port"] = value["port"]
+                contents["records"][i]["data"] = value["target"]
 
         return contents
 
@@ -410,8 +383,8 @@ class MythicBeastsProvider(BaseProvider):
         zone_name, record_name, record_type = _normalise_content(record)
         path: str = f"zones/{zone_name}/records/{record_name}/{record_type}"
 
-        contents_for: Callable[[Record, str, str], list[dict]] = getattr(
-            self, f'_contents_for_{record._type}'
+        contents_for: Callable[[Record, str, str], dict[str, list]] = getattr(
+            self, f"_contents_for_{record._type}"
         )
         content: dict[str, list] = contents_for(
             record, record_name, record_type
@@ -452,7 +425,7 @@ class MythicBeastsProvider(BaseProvider):
         )
 
         path, _ = self._gen_data(existing)
-        self._delete(path, params={'exclude-generated': 'true'})
+        self._delete(path, params={"exclude-generated": "true"})
 
 
 def _normalise_content(record: Record) -> tuple[str, str, str]:
@@ -460,13 +433,13 @@ def _normalise_content(record: Record) -> tuple[str, str, str]:
     Ensure both octodns and Mythic Beasts are working with the same content format.
     """
 
-    zone_name: str = record.zone.name.removesuffix('.')
+    zone_name: str = record.zone.name.removesuffix(".")
     record_name: str = record.name
     record_type: str = record._type
 
     # Mythic Beasts uses an '@' for the apex record name, but octodns uses an empty string.
-    if record_name == '':
-        record_name = '@'
+    if record_name == "":
+        record_name = "@"
 
     # Mythic Beasts uses "ANAME" for the octodns "ALIAS" type.
     if record_type == "ALIAS":
@@ -479,8 +452,8 @@ def _normalise_zone_name(name: str) -> str:
     """
     Ensure both octodns and Mythic Beasts are working with the same zone name format.
     """
-    if not name.endswith('.'):
-        name += '.'
+    if not name.endswith("."):
+        name += "."
     return name
 
 
