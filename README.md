@@ -36,8 +36,8 @@ octodns-mythicbeasts==2.0.0
 providers:
   mythicbeasts:
     class: octodns_mythicbeasts.MythicBeastsProvider
-    passwords:
-      my.domain.: env/MYTHICBEASTS_PASSWORD
+    api_key: env/MYTHICBEASTS_API_KEY
+    api_secret: env/MYTHICBEASTS_API_SECRET
 ```
 
 ### Support Information
@@ -57,3 +57,7 @@ MythicBeastsProvider does not support dynamic records.
 ### Development
 
 See the [/script/](/script/) directory for some tools to help with the development process. They generally follow the [Script to rule them all](https://github.com/github/scripts-to-rule-them-all) pattern. Most useful is `./script/bootstrap` which will create a venv and install both the runtime and development related requirements. It will also hook up a pre-commit hook that covers most of what's run by CI.
+
+Run the full test suite with `./script/cibuild`.
+
+Don't forget to add a changelog entry with `./script/changelog create -t {major|minor|patch} "change description"`
