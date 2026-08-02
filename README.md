@@ -18,8 +18,8 @@ Pinning specific versions or SHAs is recommended to avoid unplanned upgrades.
 
 ```
 # Start with the latest versions and don't just copy what's here
-octodns==0.9.14
-octodns-mythicbeasts==0.0.1
+octodns==0.21.1
+octodns-mythicbeasts==2.0.0
 ```
 
 ##### SHAs
@@ -41,6 +41,10 @@ providers:
 ```
 
 ### Support Information
+
+#### API Docs
+
+Version 2.0.0+ targets the Mythic Beasts V2 API. Documentation can be found [here](https://www.mythic-beasts.com/support/api/dnsv2).
 
 #### Records
 
