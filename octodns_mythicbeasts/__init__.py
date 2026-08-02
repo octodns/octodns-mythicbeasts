@@ -2,13 +2,14 @@ from collections.abc import Callable
 from logging import getLogger
 from typing import ClassVar
 
+from requests import HTTPError, Session
+
 from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 from octodns.provider.plan import Plan
 from octodns.record import Change, Record
 from octodns.zone import Zone
-from requests import HTTPError, Session
 
 # TODO: remove __VERSION__ with the next major version release
 __version__ = __VERSION__ = "2.0.0"
@@ -137,7 +138,6 @@ class MythicBeastsProvider(BaseProvider):
         if not self._zones:
 
             zone_response: dict = self._get(path="zones")
-
 
             zone_list: list[str] = zone_response.get("zones", [])
 
@@ -269,6 +269,7 @@ class MythicBeastsProvider(BaseProvider):
         }
 
     _data_for_A = _data_for_multiple
+    _data_for_AAAA = _data_for_multiple
     _data_for_SPF = _data_for_multiple
     _data_for_NS = _data_for_multiple
     _data_for_TXT = _data_for_multiple
@@ -460,9 +461,10 @@ class MythicBeastsProvider(BaseProvider):
 
     _contents_for_ALIAS = _contents_for_single
     _contents_for_A = _contents_for_multiple
-    _contents_for_AAAA = _contents_for_single
+    _contents_for_AAAA = _contents_for_multiple
     _contents_for_CNAME = _contents_for_single
     _contents_for_NS = _contents_for_multiple
+    _contents_for_TXT = _contents_for_multiple
 
     def _gen_data(self, record: Record):
 
