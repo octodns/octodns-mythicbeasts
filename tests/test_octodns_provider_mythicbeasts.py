@@ -1,29 +1,28 @@
-#
-#
-#
-
 from os.path import dirname, join
+from types import SimpleNamespace
 from unittest import TestCase
 
-from requests_mock import ANY
+from requests import HTTPError
 from requests_mock import mock as requests_mock
 
+from octodns.provider import ProviderException
 from octodns.provider.yaml import YamlProvider
 from octodns.record import Create, Delete, Record, Update
 from octodns.zone import Zone
 
 from octodns_mythicbeasts import (
     MythicBeastsProvider,
-    add_trailing_dot,
-    remove_trailing_dot,
+    _normalise_content,
+    _normalise_record_name,
+    _normalise_zone_name,
 )
 
 
 class TestMythicBeastsProvider(TestCase):
-    expected = Zone('unit.tests.', [])
+    expected = Zone("unit.tests.", [])
     source = YamlProvider(
-        'test_expected',
-        join(dirname(__file__), 'config'),
+        "test_expected",
+        join(dirname(__file__), "config"),
         escaped_semicolons=False,
     )
     source.populate(expected)
@@ -33,431 +32,436 @@ class TestMythicBeastsProvider(TestCase):
         if record._type not in MythicBeastsProvider.SUPPORTS:
             expected.remove_record(record)
 
-    def test_trailing_dot(self):
-        with self.assertRaises(AssertionError) as err:
-            add_trailing_dot('unit.tests.')
-        self.assertEqual('Value already has trailing dot', str(err.exception))
+    @property
+    def auth_url(self):
+        return f"{MythicBeastsProvider.MB_API_AUTH_URL}login"
 
-        with self.assertRaises(AssertionError) as err:
-            remove_trailing_dot('unit.tests')
-        self.assertEqual(
-            'Value already missing trailing dot', str(err.exception)
+    @property
+    def zones_url(self):
+        return f"{MythicBeastsProvider.MB_API_BASE_URL}zones"
+
+    @property
+    def records_url(self):
+        return f"{MythicBeastsProvider.MB_API_BASE_URL}zones/unit.tests/records"
+
+    def _provider(self):
+        return MythicBeastsProvider("test", "api-key", "api-secret")
+
+    def _api_records_for_zone(self, provider, zone):
+        records = []
+        for record in sorted(zone.records, key=lambda r: (r.name, r._type)):
+            _, content = provider._gen_data(record)
+            records.extend(content["records"])
+        return records
+
+    def test_normalise_helpers(self):
+        self.assertEqual("unit.tests.", _normalise_zone_name("unit.tests"))
+        self.assertEqual("unit.tests.", _normalise_zone_name("unit.tests."))
+        self.assertEqual("", _normalise_record_name("@"))
+        self.assertEqual("www", _normalise_record_name("www"))
+
+    def test_normalise_content(self):
+        zone = Zone("unit.tests.", [])
+        alias = Record.new(
+            zone,
+            "",
+            {"ttl": 300, "type": "ALIAS", "value": "target.unit.tests."},
         )
+        name, host, record_type = _normalise_content(alias)
+        self.assertEqual("unit.tests", name)
+        self.assertEqual("@", host)
+        self.assertEqual("ANAME", record_type)
 
-        self.assertEqual(add_trailing_dot('unit.tests'), 'unit.tests.')
-        self.assertEqual(remove_trailing_dot('unit.tests.'), 'unit.tests')
-
-    def test_data_for_single(self):
-        test_data = {
-            'raw_values': [{'value': 'a:a::c', 'ttl': 0}],
-            'zone': 'unit.tests.',
-        }
-        test_single = MythicBeastsProvider._data_for_single('', test_data)
-        self.assertTrue(isinstance(test_single, dict))
-        self.assertEqual('a:a::c', test_single['value'])
-
-    def test_data_for_multiple(self):
-        test_data = {
-            'raw_values': [
-                {'value': 'b:b::d', 'ttl': 60},
-                {'value': 'a:a::c', 'ttl': 60},
-            ],
-            'zone': 'unit.tests.',
-        }
-        test_multiple = MythicBeastsProvider._data_for_multiple('', test_data)
-        self.assertTrue(isinstance(test_multiple, dict))
-        self.assertEqual(2, len(test_multiple['values']))
-
-    def test_data_for_txt(self):
-        test_data = {
-            'raw_values': [
-                {'value': 'v=DKIM1; k=rsa; p=prawf', 'ttl': 60},
-                {'value': 'prawf prawf dyma prawf', 'ttl': 300},
-            ],
-            'zone': 'unit.tests.',
-        }
-        test_txt = MythicBeastsProvider._data_for_TXT('', test_data)
-        self.assertTrue(isinstance(test_txt, dict))
-        self.assertEqual(2, len(test_txt['values']))
-        self.assertEqual('v=DKIM1\\; k=rsa\\; p=prawf', test_txt['values'][0])
-
-    def test_data_for_MX(self):
-        test_data = {
-            'raw_values': [
-                {'value': '10 un.unit', 'ttl': 60},
-                {'value': '20 dau.unit', 'ttl': 60},
-                {'value': '30 tri.unit', 'ttl': 60},
-            ],
-            'zone': 'unit.tests.',
-        }
-        test_MX = MythicBeastsProvider._data_for_MX('', test_data)
-        self.assertTrue(isinstance(test_MX, dict))
-        self.assertEqual(3, len(test_MX['values']))
-
-        with self.assertRaises(AssertionError) as err:
-            test_MX = MythicBeastsProvider._data_for_MX(
-                '', {'raw_values': [{'value': '', 'ttl': 0}]}
-            )
-        self.assertEqual('Unable to parse MX data', str(err.exception))
-
-    def test_data_for_CNAME(self):
-        test_data = {
-            'raw_values': [{'value': 'cname', 'ttl': 60}],
-            'zone': 'unit.tests.',
-        }
-        test_cname = MythicBeastsProvider._data_for_CNAME('', test_data)
-        self.assertTrue(isinstance(test_cname, dict))
-        self.assertEqual('cname.unit.tests.', test_cname['value'])
-
-    def test_data_for_ANAME(self):
-        test_data = {
-            'raw_values': [{'value': 'aname', 'ttl': 60}],
-            'zone': 'unit.tests.',
-        }
-        test_aname = MythicBeastsProvider._data_for_ANAME('', test_data)
-        self.assertTrue(isinstance(test_aname, dict))
-        self.assertEqual('aname', test_aname['value'])
-
-    def test_data_for_SRV(self):
-        test_data = {
-            'raw_values': [
-                {'value': '10 20 30 un.srv.unit', 'ttl': 60},
-                {'value': '20 30 40 dau.srv.unit', 'ttl': 60},
-                {'value': '30 30 50 tri.srv.unit', 'ttl': 60},
-            ],
-            'zone': 'unit.tests.',
-        }
-        test_SRV = MythicBeastsProvider._data_for_SRV('', test_data)
-        self.assertTrue(isinstance(test_SRV, dict))
-        self.assertEqual(3, len(test_SRV['values']))
-
-        with self.assertRaises(AssertionError) as err:
-            test_SRV = MythicBeastsProvider._data_for_SRV(
-                '', {'raw_values': [{'value': '', 'ttl': 0}]}
-            )
-        self.assertEqual('Unable to parse SRV data', str(err.exception))
-
-    def test_data_for_SSHFP(self):
-        test_data = {
-            'raw_values': [
-                {'value': '1 1 0123456789abcdef', 'ttl': 60},
-                {'value': '1 2 0123456789abcdef', 'ttl': 60},
-                {'value': '2 3 0123456789abcdef', 'ttl': 60},
-            ],
-            'zone': 'unit.tests.',
-        }
-        test_SSHFP = MythicBeastsProvider._data_for_SSHFP('', test_data)
-        self.assertTrue(isinstance(test_SSHFP, dict))
-        self.assertEqual(3, len(test_SSHFP['values']))
-
-        with self.assertRaises(AssertionError) as err:
-            test_SSHFP = MythicBeastsProvider._data_for_SSHFP(
-                '', {'raw_values': [{'value': '', 'ttl': 0}]}
-            )
-        self.assertEqual('Unable to parse SSHFP data', str(err.exception))
-
-    def test_data_for_CAA(self):
-        test_data = {
-            'raw_values': [{'value': '1 issue letsencrypt.org', 'ttl': 60}],
-            'zone': 'unit.tests.',
-        }
-        test_CAA = MythicBeastsProvider._data_for_CAA('', test_data)
-        self.assertTrue(isinstance(test_CAA, dict))
-        self.assertEqual(3, len(test_CAA['value']))
-
-        with self.assertRaises(AssertionError) as err:
-            test_CAA = MythicBeastsProvider._data_for_CAA(
-                '', {'raw_values': [{'value': '', 'ttl': 0}]}
-            )
-        self.assertEqual('Unable to parse CAA data', str(err.exception))
-
-    def test_command_generation(self):
-        zone = Zone('unit.tests.', [])
-        zone.add_record(
-            Record.new(
-                zone,
-                '',
-                {'ttl': 60, 'type': 'ALIAS', 'value': 'alias.unit.tests.'},
-            )
-        )
-        zone.add_record(
-            Record.new(
-                zone,
-                'prawf-ns',
-                {
-                    'ttl': 300,
-                    'type': 'NS',
-                    'values': ['alias.unit.tests.', 'alias2.unit.tests.'],
-                },
-            )
-        )
-        zone.add_record(
-            Record.new(
-                zone,
-                'prawf-a',
-                {'ttl': 60, 'type': 'A', 'values': ['1.2.3.4', '5.6.7.8']},
-            )
-        )
-        zone.add_record(
-            Record.new(
-                zone,
-                'prawf-aaaa',
-                {
-                    'ttl': 60,
-                    'type': 'AAAA',
-                    'values': ['a:a::a', 'b:b::b', 'c:c::c:c'],
-                },
-            )
-        )
-        zone.add_record(
-            Record.new(
-                zone,
-                'prawf-txt',
-                {'ttl': 60, 'type': 'TXT', 'value': 'prawf prawf dyma prawf'},
-            )
-        )
-        zone.add_record(
-            Record.new(
-                zone,
-                'prawf-txt2',
-                {
-                    'ttl': 60,
-                    'type': 'TXT',
-                    'value': 'v=DKIM1\\; k=rsa\\; p=prawf',
-                },
-            )
-        )
+    def test_data_generation_helpers(self):
         with requests_mock() as mock:
-            mock.post(ANY, status_code=200, text='')
-
-            provider = MythicBeastsProvider(
-                'test', {'unit.tests.': 'mypassword'}
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
             )
+            provider = self._provider()
 
-            plan = provider.plan(zone)
-            changes = plan.changes
-            generated_commands = []
-
-            for change in changes:
-                generated_commands.extend(
-                    provider._compile_commands('ADD', change.new)
-                )
-
-            expected_commands = [
-                'ADD unit.tests 60 ANAME alias.unit.tests.',
-                'ADD prawf-ns.unit.tests 300 NS alias.unit.tests.',
-                'ADD prawf-ns.unit.tests 300 NS alias2.unit.tests.',
-                'ADD prawf-a.unit.tests 60 A 1.2.3.4',
-                'ADD prawf-a.unit.tests 60 A 5.6.7.8',
-                'ADD prawf-aaaa.unit.tests 60 AAAA a:a::a',
-                'ADD prawf-aaaa.unit.tests 60 AAAA b:b::b',
-                'ADD prawf-aaaa.unit.tests 60 AAAA c:c::c:c',
-                'ADD prawf-txt.unit.tests 60 TXT prawf prawf dyma prawf',
-                'ADD prawf-txt2.unit.tests 60 TXT v=DKIM1; k=rsa; p=prawf',
+            records = [
+                {"ttl": 300, "data": "1.2.3.4"},
+                {"ttl": 300, "data": "5.6.7.8"},
             ]
-
-            generated_commands.sort()
-            expected_commands.sort()
-
-            self.assertEqual(generated_commands, expected_commands)
-
-            # Now test deletion
-            existing = (
-                'prawf-txt 300 TXT prawf prawf dyma prawf\n'
-                'prawf-txt2 300 TXT v=DKIM1; k=rsa; p=prawf\n'
-                'prawf-a 60 A 1.2.3.4'
+            self.assertEqual(
+                {"ttl": 300, "type": "A", "values": ["1.2.3.4", "5.6.7.8"]},
+                provider._data_for_multiple("A", records),
+            )
+            self.assertEqual(
+                {"ttl": 300, "type": "AAAA", "value": "1::1"},
+                provider._data_for_single(
+                    "AAAA", [{"ttl": 300, "data": "1::1"}]
+                ),
+            )
+            self.assertEqual(
+                {
+                    "ttl": 300,
+                    "type": "MX",
+                    "values": [
+                        {"exchange": "mx.unit.tests.", "preference": 10}
+                    ],
+                },
+                provider._data_for_MX(
+                    "MX",
+                    [{"ttl": 300, "data": "mx.unit.tests.", "mx_priority": 10}],
+                ),
+            )
+            self.assertEqual(
+                {
+                    "ttl": 600,
+                    "type": "SRV",
+                    "values": [
+                        {
+                            "target": "srv.unit.tests.",
+                            "priority": 1,
+                            "weight": 2,
+                            "port": 3,
+                        }
+                    ],
+                },
+                provider._data_for_SRV(
+                    "SRV",
+                    [
+                        {
+                            "ttl": 600,
+                            "data": "srv.unit.tests.",
+                            "srv_priority": 1,
+                            "srv_weight": 2,
+                            "srv_port": 3,
+                        }
+                    ],
+                ),
+            )
+            self.assertEqual(
+                {
+                    "ttl": 3600,
+                    "type": "SSHFP",
+                    "values": [
+                        {
+                            "fingerprint": "abc",
+                            "algorithm": 1,
+                            "fingerprint_type": 2,
+                        }
+                    ],
+                },
+                provider._data_for_SSHFP(
+                    "SSHFP",
+                    [
+                        {
+                            "ttl": 3600,
+                            "data": "abc",
+                            "sshfp_algorithm": 1,
+                            "sshfp_type": 2,
+                        }
+                    ],
+                ),
+            )
+            self.assertEqual(
+                {
+                    "ttl": 600,
+                    "type": "TLSA",
+                    "values": [
+                        {
+                            "certificate_usage": 3,
+                            "selector": 1,
+                            "matching_type": 1,
+                            "certificate_association_data": "deadbeef",
+                        }
+                    ],
+                },
+                provider._data_for_TLSA(
+                    "TLSA",
+                    [
+                        {
+                            "ttl": 600,
+                            "data": "deadbeef",
+                            "tlsa_usage": 3,
+                            "tlsa_selector": 1,
+                            "tlsa_matching": 1,
+                        }
+                    ],
+                ),
+            )
+            self.assertEqual(
+                {
+                    "ttl": 300,
+                    "type": "CAA",
+                    "values": [
+                        {"flags": 0, "tag": "issue", "value": "ca.example"}
+                    ],
+                },
+                provider._data_for_CAA(
+                    "CAA",
+                    [
+                        {
+                            "ttl": 300,
+                            "data": "ca.example",
+                            "caa_flags": 0,
+                            "caa_tag": "issue",
+                        }
+                    ],
+                ),
             )
 
-            with requests_mock() as mock:
-                mock.post(ANY, status_code=200, text=existing)
-                wanted = Zone('unit.tests.', [])
+    def test_init_login_failure_raises_provider_exception(self):
+        with requests_mock() as mock:
+            mock.post(self.auth_url, status_code=401, json={"detail": "nope"})
+            with self.assertRaises(ProviderException):
+                self._provider()
 
-                plan = provider.plan(wanted)
-                changes = plan.changes
-                generated_commands = []
+    def test_zones_are_cached_and_normalised(self):
+        with requests_mock() as mock:
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
+            )
+            mock.get(
+                self.zones_url,
+                status_code=200,
+                json={"zones": ["unit.tests", "example.com."]},
+            )
 
-                for change in changes:
-                    generated_commands.extend(
-                        provider._compile_commands('DELETE', change.existing)
-                    )
+            provider = self._provider()
+            self.assertEqual(
+                "Bearer token", provider._sess.headers["Authorization"]
+            )
 
-            expected_commands = [
-                'DELETE prawf-a.unit.tests 60 A 1.2.3.4',
-                'DELETE prawf-txt.unit.tests 300 TXT prawf prawf dyma prawf',
-                'DELETE prawf-txt2.unit.tests 300 TXT v=DKIM1; k=rsa; p=prawf',
+            first = provider.zones
+            second = provider.zones
+            self.assertIs(first, second)
+            self.assertIn("unit.tests.", first)
+            self.assertIn("example.com.", first)
+
+            zone_gets = [
+                req
+                for req in mock.request_history
+                if req.method == "GET" and req.url == self.zones_url
             ]
+            self.assertEqual(1, len(zone_gets))
 
-            generated_commands.sort()
-            expected_commands.sort()
-
-            self.assertEqual(generated_commands, expected_commands)
-
-    def test_fake_command_generation(self):
-        class FakeChangeRecord(object):
-            def __init__(self):
-                self.__fqdn = 'prawf.unit.tests.'
-                self._type = 'NOOP'
-                self.value = 'prawf'
-                self.ttl = 60
-
-            @property
-            def record(self):
-                return self
-
-            @property
-            def fqdn(self):
-                return self.__fqdn
-
+    def test_zone_records_returns_empty_for_unknown_zone(self):
         with requests_mock() as mock:
-            mock.post(ANY, status_code=200, text='')
-
-            provider = MythicBeastsProvider(
-                'test', {'unit.tests.': 'mypassword'}
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
             )
-            record = FakeChangeRecord()
-            command = provider._compile_commands('ADD', record)
-            self.assertEqual([], command)
-
-    def test_populate(self):
-        provider = None
-
-        # Null passwords dict
-        with self.assertRaises(AssertionError) as err:
-            provider = MythicBeastsProvider('test', None)
-        self.assertEqual('Passwords must be a dictionary', str(err.exception))
-
-        # Missing password
-        with requests_mock() as mock:
-            mock.post(ANY, status_code=401, text='ERR Not authenticated')
-
-            with self.assertRaises(AssertionError) as err:
-                provider = MythicBeastsProvider('test', dict())
-                zone = Zone('unit.tests.', [])
-                provider.populate(zone)
-            self.assertEqual(
-                'Missing password for domain: unit.tests', str(err.exception)
+            mock.get(
+                self.zones_url, status_code=200, json={"zones": ["example.com"]}
             )
 
-        # Failed authentication
-        with requests_mock() as mock:
-            mock.post(ANY, status_code=401, text='ERR Not authenticated')
+            provider = self._provider()
+            records = provider.zone_records(Zone("unit.tests.", []))
+            self.assertEqual([], records)
 
-            with self.assertRaises(Exception) as err:
-                provider = MythicBeastsProvider(
-                    'test', {'unit.tests.': 'mypassword'}
-                )
-                zone = Zone('unit.tests.', [])
-                provider.populate(zone)
-            self.assertEqual(
-                'Mythic Beasts unauthorized for zone: unit.tests',
-                err.exception.message,
+    def test_zone_records_uses_cache_after_first_fetch(self):
+        with requests_mock() as mock:
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
+            )
+            mock.get(
+                self.zones_url, status_code=200, json={"zones": ["unit.tests"]}
+            )
+            mock.get(
+                self.records_url,
+                status_code=200,
+                json={
+                    "records": [
+                        {"host": "@", "type": "A", "ttl": 60, "data": "1.2.3.4"}
+                    ]
+                },
             )
 
-        # Check unmatched lines are ignored
-        test_data = 'This should not match'
-        with requests_mock() as mock:
-            mock.post(ANY, status_code=200, text=test_data)
+            provider = self._provider()
+            zone = Zone("unit.tests.", [])
 
-            provider = MythicBeastsProvider(
-                'test', {'unit.tests.': 'mypassword'}
+            first = provider.zone_records(zone)
+            second = provider.zone_records(zone)
+            self.assertIs(first, second)
+
+            record_gets = [
+                req
+                for req in mock.request_history
+                if req.method == "GET" and req.url.startswith(self.records_url)
+            ]
+            self.assertEqual(1, len(record_gets))
+
+    def test_populate_with_no_records_returns_false(self):
+        with requests_mock() as mock:
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
             )
-            zone = Zone('unit.tests.', [])
-            provider.populate(zone)
+            mock.get(
+                self.zones_url, status_code=200, json={"zones": ["unit.tests"]}
+            )
+            mock.get(self.records_url, status_code=200, json={"records": []})
+
+            provider = self._provider()
+            zone = Zone("unit.tests.", [])
+            self.assertFalse(provider.populate(zone))
             self.assertEqual(0, len(zone.records))
 
-        # Check unsupported records are skipped
-        test_data = '@ 60 NOOP prawf\n@ 60 SPF prawf prawf prawf'
+    def test_populate_translates_aname_to_alias(self):
         with requests_mock() as mock:
-            mock.post(ANY, status_code=200, text=test_data)
-
-            provider = MythicBeastsProvider(
-                'test', {'unit.tests.': 'mypassword'}
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
             )
-            zone = Zone('unit.tests.', [])
-            provider.populate(zone)
-            self.assertEqual(0, len(zone.records))
+            mock.get(
+                self.zones_url, status_code=200, json={"zones": ["unit.tests"]}
+            )
+            mock.get(
+                self.records_url,
+                status_code=200,
+                json={
+                    "records": [
+                        {
+                            "host": "@",
+                            "type": "ANAME",
+                            "ttl": 300,
+                            "data": "target.unit.tests.",
+                        }
+                    ]
+                },
+            )
 
-        # Check no changes between what we support and what's parsed
-        # from the unit.tests. config YAML. Also make sure we see the same
-        # for both after we've thrown away records we don't support
+            provider = self._provider()
+            zone = Zone("unit.tests.", [])
+            self.assertTrue(provider.populate(zone))
+
+            alias = next(iter(zone.records))
+            self.assertEqual("ALIAS", alias._type)
+            self.assertEqual("target.unit.tests.", alias.value)
+
+    def test_contents_for_tlsa(self):
         with requests_mock() as mock:
-            with open('tests/fixtures/mythicbeasts-list.txt') as file_handle:
-                mock.post(ANY, status_code=200, text=file_handle.read())
-
-            provider = MythicBeastsProvider(
-                'test', {'unit.tests.': 'mypassword'}
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
             )
-            zone = Zone('unit.tests.', [])
-            provider.populate(zone)
+            provider = self._provider()
 
-            self.assertEqual(17, len(zone.records))
-            self.assertEqual(17, len(self.expected.records))
+            fake_record = SimpleNamespace(
+                ttl=600,
+                values=[
+                    {
+                        "certificate_usage": 3,
+                        "selector": 1,
+                        "matching_type": 1,
+                        "certificate_association_data": "deadbeef",
+                    }
+                ],
+            )
+
+            self.assertEqual(
+                {
+                    "records": [
+                        {
+                            "host": "_443._tcp",
+                            "type": "TLSA",
+                            "ttl": 600,
+                            "data": "deadbeef",
+                            "tlsa_usage": 3,
+                            "tlsa_selector": 1,
+                            "tlsa_matching": 1,
+                        }
+                    ]
+                },
+                provider._contents_for_TLSA(fake_record, "_443._tcp", "TLSA"),
+            )
+
+    def test_populate_from_json_records(self):
+        with requests_mock() as mock:
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
+            )
+            mock.get(
+                self.zones_url, status_code=200, json={"zones": ["unit.tests"]}
+            )
+
+            provider = self._provider()
+
+            api_records = self._api_records_for_zone(provider, self.expected)
+            # Ensure filtering code paths are also covered.
+            api_records.append(
+                {"host": "@", "type": "SOA", "ttl": 300, "data": "ignored"}
+            )
+            api_records.append(
+                {"host": "@", "type": "PTR", "ttl": 300, "data": "ignored"}
+            )
+
+            mock.get(
+                self.records_url, status_code=200, json={"records": api_records}
+            )
+
+            zone = Zone("unit.tests.", [])
+            self.assertTrue(provider.populate(zone))
+            self.assertEqual(len(self.expected.records), len(zone.records))
+
             changes = self.expected.changes(zone, provider)
-            self.assertEqual(0, len(changes))
+            self.assertEqual([], changes)
 
-    def test_apply(self):
-        provider = MythicBeastsProvider(
-            'test', {'unit.tests.': 'mypassword'}, strict_supports=False
-        )
-        zone = Zone('unit.tests.', [])
-
-        # Create blank zone
+    def test_apply_create_update_delete(self):
         with requests_mock() as mock:
-            mock.post(ANY, status_code=200, text='')
-            provider.populate(zone)
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
+            )
+            mock.get(
+                self.zones_url, status_code=200, json={"zones": ["unit.tests"]}
+            )
 
-        self.assertEqual(0, len(zone.records))
+            provider = self._provider()
 
-        # Record change failed
-        with requests_mock() as mock:
-            mock.post(ANY, status_code=200, text='')
-            provider.populate(zone)
-            zone.add_record(
+            existing = Zone("unit.tests.", [])
+            existing.add_record(
                 Record.new(
-                    zone, 'prawf', {'ttl': 300, 'type': 'TXT', 'value': 'prawf'}
+                    existing,
+                    "edit",
+                    {"ttl": 300, "type": "TXT", "value": "old"},
                 )
             )
-            plan = provider.plan(zone)
-
-        with requests_mock() as mock:
-            mock.post(ANY, status_code=400, text='NADD 300 TXT prawf')
-
-            with self.assertRaises(Exception) as err:
-                provider.apply(plan)
-            self.assertEqual(
-                'Mythic Beasts could not action command: unit.tests '
-                'ADD prawf.unit.tests 300 TXT prawf',
-                err.exception.message,
+            existing.add_record(
+                Record.new(
+                    existing,
+                    "gone",
+                    {"ttl": 300, "type": "TXT", "value": "delete-me"},
+                )
             )
 
-        # Check deleting and adding/changing test record
-        existing = 'prawf 300 TXT prawf prawf prawf\ndileu 300 TXT dileu'
+            mock.get(
+                self.records_url,
+                status_code=200,
+                json={
+                    "records": self._api_records_for_zone(provider, existing)
+                },
+            )
 
-        with requests_mock() as mock:
-            mock.post(ANY, status_code=200, text=existing)
-
-            # Mash up a new zone with records so a plan
-            # is generated with changes and applied. For some reason
-            # passing self.expected, or just changing each record's zone
-            # doesn't work. Nor does this without a single add_record after
-            wanted = Zone('unit.tests.', [])
-            for record in list(self.expected.records):
-                data = {'type': record._type}
-                data.update(record.data)
-                data.pop('octodns', None)
-                wanted.add_record(Record.new(wanted, record.name, data))
-
+            wanted = Zone("unit.tests.", [])
+            wanted.add_record(
+                Record.new(
+                    wanted, "edit", {"ttl": 300, "type": "TXT", "value": "new"}
+                )
+            )
             wanted.add_record(
                 Record.new(
                     wanted,
-                    'prawf',
-                    {'ttl': 60, 'type': 'TXT', 'value': 'prawf yw e'},
+                    "fresh",
+                    {"ttl": 60, "type": "A", "values": ["1.2.3.4", "5.6.7.8"]},
                 )
             )
 
-            plan = provider.plan(wanted)
+            mock.put(
+                f"{MythicBeastsProvider.MB_API_BASE_URL}zones/unit.tests/records/edit/TXT",
+                status_code=200,
+                json={"ok": True},
+            )
+            mock.delete(
+                f"{MythicBeastsProvider.MB_API_BASE_URL}zones/unit.tests/records/gone/TXT",
+                status_code=200,
+                json={"ok": True},
+            )
+            mock.post(
+                f"{MythicBeastsProvider.MB_API_BASE_URL}zones/unit.tests/records/fresh/A",
+                status_code=200,
+                json={"ok": True},
+            )
 
-            # Octo ignores NS records (15-1)
+            plan = provider.plan(wanted)
             self.assertEqual(
                 1, len([c for c in plan.changes if isinstance(c, Update)])
             )
@@ -465,7 +469,124 @@ class TestMythicBeastsProvider(TestCase):
                 1, len([c for c in plan.changes if isinstance(c, Delete)])
             )
             self.assertEqual(
-                16, len([c for c in plan.changes if isinstance(c, Create)])
+                1, len([c for c in plan.changes if isinstance(c, Create)])
             )
-            self.assertEqual(18, provider.apply(plan))
-            self.assertTrue(plan.exists)
+            self.assertIn("unit.tests.", provider._zone_records)
+
+            self.assertEqual(3, provider.apply(plan))
+            self.assertNotIn("unit.tests.", provider._zone_records)
+
+            update_requests = [
+                req
+                for req in mock.request_history
+                if req.method == "PUT"
+                and req.url.endswith("/zones/unit.tests/records/edit/TXT")
+            ]
+            self.assertEqual(1, len(update_requests))
+            self.assertEqual(
+                {
+                    "records": [
+                        {
+                            "host": "edit",
+                            "type": "TXT",
+                            "ttl": 300,
+                            "data": "new",
+                        }
+                    ]
+                },
+                update_requests[0].json(),
+            )
+
+            delete_requests = [
+                req
+                for req in mock.request_history
+                if req.method == "DELETE"
+                and req.url.startswith(
+                    f"{MythicBeastsProvider.MB_API_BASE_URL}zones/unit.tests/records/gone/TXT"
+                )
+            ]
+            self.assertEqual(1, len(delete_requests))
+            self.assertEqual(
+                {"exclude-generated": ["true"]}, delete_requests[0].qs
+            )
+
+            create_requests = [
+                req
+                for req in mock.request_history
+                if req.method == "POST"
+                and req.url.endswith("/zones/unit.tests/records/fresh/A")
+            ]
+            self.assertEqual(1, len(create_requests))
+            self.assertEqual(
+                {
+                    "records": [
+                        {
+                            "host": "fresh",
+                            "type": "A",
+                            "ttl": 60,
+                            "data": "1.2.3.4",
+                        },
+                        {
+                            "host": "fresh",
+                            "type": "A",
+                            "ttl": 60,
+                            "data": "5.6.7.8",
+                        },
+                    ]
+                },
+                create_requests[0].json(),
+            )
+
+    def test_apply_missing_zone_raises(self):
+        with requests_mock() as mock:
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
+            )
+            mock.get(self.zones_url, status_code=200, json={"zones": []})
+            provider = self._provider()
+
+            wanted = Zone("unit.tests.", [])
+            wanted.add_record(
+                Record.new(
+                    wanted, "txt", {"ttl": 300, "type": "TXT", "value": "value"}
+                )
+            )
+            plan = SimpleNamespace(desired=wanted, changes=[])
+
+            with self.assertRaises(KeyError):
+                provider._apply(plan)
+
+    def test_request_non_2xx_raises_http_error(self):
+        with requests_mock() as mock:
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
+            )
+            mock.get(self.zones_url, status_code=500, json={"error": "boom"})
+
+            provider = self._provider()
+            with self.assertRaises(HTTPError):
+                _ = provider.zones
+
+    def test_request_helper_passes_expected_kwargs(self):
+        with requests_mock() as mock:
+            mock.post(
+                self.auth_url, status_code=200, json={"access_token": "token"}
+            )
+            mock.patch(
+                f"{MythicBeastsProvider.MB_API_BASE_URL}zones/unit.tests/records/example/TXT",
+                status_code=200,
+                json={"ok": True},
+            )
+
+            provider = self._provider()
+            provider._patch(
+                "zones/unit.tests/records/example/TXT",
+                params={"a": "b"},
+                json={"records": []},
+            )
+
+            patch_requests = [
+                req for req in mock.request_history if req.method == "PATCH"
+            ]
+            self.assertEqual(1, len(patch_requests))
+            self.assertEqual({"a": ["b"]}, patch_requests[0].qs)
