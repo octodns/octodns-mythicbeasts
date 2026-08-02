@@ -2,14 +2,13 @@ from collections.abc import Callable
 from logging import getLogger
 from typing import ClassVar
 
-from requests import HTTPError, Session
-
 from octodns import __VERSION__ as octodns_version
 from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 from octodns.provider.plan import Plan
 from octodns.record import Change, Record
 from octodns.zone import Zone
+from requests import HTTPError, Session
 
 # TODO: remove __VERSION__ with the next major version release
 __version__ = __VERSION__ = "2.0.0"
@@ -30,6 +29,7 @@ class MythicBeastsProvider(BaseProvider):
         "SSHFP",
         "CAA",
         "TXT",
+        "TLSA",
     }
 
     MB_API_AUTH_URL: str = "https://auth.mythic-beasts.com/"
@@ -225,6 +225,49 @@ class MythicBeastsProvider(BaseProvider):
             ],
         }
 
+    def _data_for_SSHFP(self, _type, records: list[dict]) -> dict:
+        return {
+            "ttl": records[0].get("ttl"),
+            "type": _type,
+            "values": [
+                {
+                    "fingerprint": record.get("data"),
+                    "algorithm": record.get("sshfp_algorithm"),
+                    "fingerprint_type": record.get("sshfp_type"),
+                }
+                for record in records
+            ],
+        }
+
+    def _data_for_TLSA(self, _type, records: list[dict]) -> dict:
+        return {
+            "ttl": records[0].get("ttl"),
+            "type": _type,
+            "values": [
+                {
+                    "certificate_usage": record.get("tlsa_usage"),
+                    "selector": record.get("tlsa_selector"),
+                    "matching_type": record.get("tlsa_matching"),
+                    "certificate_association_data": record.get("data"),
+                }
+                for record in records
+            ],
+        }
+
+    def _data_for_CAA(self, _type, records: list[dict]) -> dict:
+        return {
+            "ttl": records[0].get("ttl"),
+            "type": _type,
+            "values": [
+                {
+                    "flags": record.get("caa_flags"),
+                    "tag": record.get("caa_tag"),
+                    "value": record.get("data"),
+                }
+                for record in records
+            ],
+        }
+
     _data_for_A = _data_for_multiple
     _data_for_SPF = _data_for_multiple
     _data_for_NS = _data_for_multiple
@@ -350,20 +393,69 @@ class MythicBeastsProvider(BaseProvider):
             ]
         }
 
-        # Add the MX priority to the contents for MX records
-        if record_type == "MX":
-            for i, value in enumerate(record.values):
-                contents["records"][i]["mx_priority"] = value["preference"]
-                contents["records"][i]["data"] = value["exchange"]
+        return contents
 
-        # Add the SRV priority, weight, and port to the contents for SRV records
-        if record_type == "SRV":
-            for i, value in enumerate(record.values):
-                contents["records"][i]["srv_priority"] = value["priority"]
-                contents["records"][i]["srv_weight"] = value["weight"]
-                contents["records"][i]["srv_port"] = value["port"]
-                contents["records"][i]["data"] = value["target"]
+    def _contents_for_MX(
+        self, record: Record, record_name: str, record_type: str
+    ) -> dict[str, list]:
+        contents: dict[str, list] = self._contents_for_multiple(
+            record, record_name, record_type
+        )
+        for i, value in enumerate(record.values):
+            contents["records"][i]["mx_priority"] = value["preference"]
+            contents["records"][i]["data"] = value["exchange"]
+        return contents
 
+    def _contents_for_SRV(
+        self, record: Record, record_name: str, record_type: str
+    ) -> dict[str, list]:
+        contents: dict[str, list] = self._contents_for_multiple(
+            record, record_name, record_type
+        )
+        for i, value in enumerate(record.values):
+            contents["records"][i]["srv_priority"] = value["priority"]
+            contents["records"][i]["srv_weight"] = value["weight"]
+            contents["records"][i]["srv_port"] = value["port"]
+            contents["records"][i]["data"] = value["target"]
+        return contents
+
+    def _contents_for_SSHFP(
+        self, record: Record, record_name: str, record_type: str
+    ) -> dict[str, list]:
+        contents: dict[str, list] = self._contents_for_multiple(
+            record, record_name, record_type
+        )
+        for i, value in enumerate(record.values):
+            contents["records"][i]["sshfp_algorithm"] = value["algorithm"]
+            contents["records"][i]["sshfp_type"] = value["fingerprint_type"]
+            contents["records"][i]["data"] = value["fingerprint"]
+        return contents
+
+    def _contents_for_TLSA(
+        self, record: Record, record_name: str, record_type: str
+    ) -> dict[str, list]:
+        contents: dict[str, list] = self._contents_for_multiple(
+            record, record_name, record_type
+        )
+        for i, value in enumerate(record.values):
+            contents["records"][i]["tlsa_usage"] = value["certificate_usage"]
+            contents["records"][i]["tlsa_selector"] = value["selector"]
+            contents["records"][i]["tlsa_matching"] = value["matching_type"]
+            contents["records"][i]["data"] = value[
+                "certificate_association_data"
+            ]
+        return contents
+
+    def _contents_for_CAA(
+        self, record: Record, record_name: str, record_type: str
+    ) -> dict[str, list]:
+        contents: dict[str, list] = self._contents_for_multiple(
+            record, record_name, record_type
+        )
+        for i, value in enumerate(record.values):
+            contents["records"][i]["caa_flags"] = value["flags"]
+            contents["records"][i]["caa_tag"] = value["tag"]
+            contents["records"][i]["data"] = value["value"]
         return contents
 
     _contents_for_ALIAS = _contents_for_single
@@ -371,8 +463,6 @@ class MythicBeastsProvider(BaseProvider):
     _contents_for_AAAA = _contents_for_single
     _contents_for_CNAME = _contents_for_single
     _contents_for_NS = _contents_for_multiple
-    _contents_for_MX = _contents_for_multiple
-    _contents_for_SRV = _contents_for_multiple
 
     def _gen_data(self, record: Record):
 
