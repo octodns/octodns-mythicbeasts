@@ -43,9 +43,8 @@ class MythicBeastsProvider(BaseProvider):
         params=None,
         data=None,
         json=None,
-        json_response=True,
         auth=None,
-    ):
+    ) -> dict:
         self.log.debug("_request: method=%s, path=%s", method, path)
 
         url: str = f"{url}{path}"
@@ -65,10 +64,7 @@ class MythicBeastsProvider(BaseProvider):
                 "Authentication failed for Mythic Beasts API, check your API key and secret"
             )
 
-        if json_response:
-            payload = resp.json()
-        else:
-            payload = resp.text
+        payload = resp.json()
         try:
             resp.raise_for_status()
         except HTTPError:
@@ -83,29 +79,28 @@ class MythicBeastsProvider(BaseProvider):
             raise
         return payload
 
-    def _get(self, path, **kwargs):
+    def _get(self, path, **kwargs) -> dict:
         return self._request("GET", path, **kwargs)
 
-    def _post(self, path, **kwargs):
+    def _post(self, path, **kwargs) -> dict:
         return self._request("POST", path, **kwargs)
 
-    def _delete(self, path, **kwargs):
+    def _delete(self, path, **kwargs) -> dict:
         return self._request("DELETE", path, **kwargs)
 
-    def _put(self, path, **kwargs):
+    def _put(self, path, **kwargs) -> dict:
         return self._request("PUT", path, **kwargs)
 
-    def _patch(self, path, **kwargs):
+    def _patch(self, path, **kwargs) -> dict:
         return self._request("PATCH", path, **kwargs)
 
-    def _login(self, api_key, api_secret):
+    def _login(self, api_key, api_secret) -> None:
         """
         Use the Mythic Beasts Auth Service to retrieve an access token.
         """
         resp = self._post(
             url=self.MB_API_AUTH_URL,
             path="login",
-            json_response=True,
             data={"grant_type": "client_credentials"},
             auth=(api_key, api_secret),
         )
@@ -114,7 +109,7 @@ class MythicBeastsProvider(BaseProvider):
             {"Authorization": f"Bearer {resp['access_token']}"}
         )
 
-    def __init__(self, id, api_key, api_secret, *args, **kwargs):
+    def __init__(self, id, api_key, api_secret, *args, **kwargs) -> None:
         self.log = getLogger(f"MythicBeastsProvider[{id}]")
         self.log.debug(
             "__init__: id=%s, api_key=%s, api_secret=***", id, api_key
@@ -138,9 +133,11 @@ class MythicBeastsProvider(BaseProvider):
         self._login(self._api_key, self._api_secret)
 
     @property
-    def zones(self):
+    def zones(self) -> dict[str, dict]:
         if not self._zones:
-            zone_response: dict = self._get(path="zones", json_response=True)
+
+            zone_response: dict = self._get(path="zones")
+
 
             zone_list: list[str] = zone_response.get("zones", [])
 
@@ -157,7 +154,6 @@ class MythicBeastsProvider(BaseProvider):
 
             record_response: dict = self._get(
                 path=f"zones/{zone.name.removesuffix('.')}/records",
-                json_response=True,
                 params={"exclude-generated": "true"},
             )
 
