@@ -1,46 +1,93 @@
 # Developer Agent Guide for octoDNS Mythic Beasts Provider
 
-This repository contains the Mythic Beasts DNS provider for octoDNS. It enables planning, syncing, and applying DNS record states directly to Mythic Beasts DNS services.
+This repository is an octoDNS provider module for Mythic Beasts DNS. It follows the same general workflow and repository conventions as other octoDNS provider repositories while implementing provider-side synchronization against the Mythic Beasts DNS API v2.
 
 > [!IMPORTANT]
 > **Core Workflow and Guidelines**
 >
-> All agents working on this repository must read and follow the general instructions and workflow guidelines defined in the core octoDNS `AGENTS.md` file.
-> - **Local check**: Look for the file at `../octodns/AGENTS.md`.
-> - **Remote check**: If the local file is not available, fetch it from GitHub: [octoDNS Core AGENTS.md](https://github.com/octodns/octodns/raw/refs/heads/main/AGENTS.md).
+> All agents working in this repository must read and follow the general instructions in the core octoDNS AGENTS guide before making changes.
+> - **Local check**: look for the file at `../octodns/AGENTS.md`.
+> - **Remote check**: if the local file is not available, fetch it from GitHub: [octoDNS Core AGENTS.md](https://github.com/octodns/octodns/raw/refs/heads/main/AGENTS.md).
 >
-> You must align your code structure, style, pull request guidelines, and overall development workflows with the instructions specified there.
+> This repository should align its structure, style, pull request guidance, and contributor workflow with the conventions used across the octoDNS organization.
 
-## Repository & Module Information
+## General Workflow & Guidelines
+
+### 1. Create a Branch
+
+Always start work by creating a new feature or bugfix branch:
+
+```bash
+git checkout -b <branch-name>
+```
+
+### 2. Verify
+
+Before committing, verify that your changes satisfy the repository standards by running the relevant checks from the repository root:
+
+```bash
+./script/test
+./script/coverage
+./script/lint
+./script/format
+```
+
+If you are changing provider behavior, add or update tests in [tests/test_octodns_provider_mythicbeasts.py](tests/test_octodns_provider_mythicbeasts.py) so the new logic is exercised without network access.
+
+### 3. Create a Changelog Entry (First Commit)
+
+The first commit on a branch should include a changelog entry. Use the helper script:
+
+```bash
+./script/changelog create --type <patch|minor|major> "brief description"
+```
+
+### 4. Subsequent Commits and Pull Requests
+
+For subsequent commits, use normal git commits. When the work is ready, push the branch and open a pull request with a clear summary of the change.
+
+## Repository and Module Overview
+
+### Repository Structure
+
+- [octodns_mythicbeasts/__init__.py](octodns_mythicbeasts/__init__.py): the provider implementation, including authentication, request helpers, record normalization, and apply logic.
+- [tests/test_octodns_provider_mythicbeasts.py](tests/test_octodns_provider_mythicbeasts.py): the main unit test suite for provider behavior.
+- [script/](script/): helper scripts for bootstrap, formatting, linting, testing, coverage, and changelog management.
+- [README.md](README.md): user-facing installation and configuration guidance.
 
 ### Key Components
 
-- **Provider Class**: [MythicBeastsProvider](file:///home/ross/octodns/octodns-mythicbeasts/octodns_mythicbeasts/__init__.py#L58-L478) (defined in [octodns_mythicbeasts/__init__.py](file:///home/ross/octodns/octodns-mythicbeasts/octodns_mythicbeasts/__init__.py)). This is the core provider implementing dynamic command-line updates and zone downloads.
-- **Exceptions**:
-  - `MythicBeastsUnauthorizedException`: Triggered when API credentials lack access to the requested zone.
-  - `MythicBeastsRecordException`: Triggered when the API fails to execute specific record addition/modification actions.
+- **Provider class**: [MythicBeastsProvider](octodns_mythicbeasts/__init__.py) is the main octoDNS provider. It authenticates with the Mythic Beasts auth service, manages a persistent session, lists zones, fetches zone records, populates octoDNS zones, and applies create, update, and delete changes.
+- **Exception**: [MythicBeastsZoneNotFoundException](octodns_mythicbeasts/__init__.py) is raised when a target zone does not exist in Mythic Beasts and cannot be created through the API.
+- **Normalization helpers**: `_normalise_zone_name`, `_normalise_record_name`, and `_normalise_content` keep octoDNS naming conventions and Mythic Beasts naming conventions aligned.
+- **Record translators**: the `_data_for_*` and `_contents_for_*` helpers convert between octoDNS record objects and Mythic Beasts API payload formats.
 
-### Key Workflows & Features
+### Current Capabilities
 
-1. **Supported Record Types**: `A`, `AAAA`, `ALIAS`, `CNAME`, `MX`, `NS`, `SRV`, `SSHFP`, `CAA`, `TXT`.
-2. **Authentication**: Authenticates using the API key credential pair (`api_key` and `api_secret`).
-3. **Response Regex Parsing**: Mythic Beasts API returns flat zone formats. The provider parses DNS records dynamically using a suite of internal compiled regular expressions:
-   - `RE_MX`: Parses priority and exchange target hostnames.
-   - `RE_SRV`: Parses priority, weight, port, and target variables.
-   - `RE_SSHFP`: Parses algorithm numbers, fingerprint types, and hex strings.
-   - `RE_CAA`: Parses flags, tags (issue, issuewild, iodef), and value strings.
-   - `RE_POPLINE`: Parses standard response name/ttl/type lines.
-4. **Dynamic Routing**: Not supported (`SUPPORTS_DYNAMIC=False`, `SUPPORTS_GEO=False`).
-5. **Dynamic Subnets**: Not supported (`SUPPORTS_DYNAMIC_SUBNETS=False`).
-6. **Pool Value Status**: Not supported (`SUPPORTS_POOL_VALUE_STATUS=False`).
+- **Supported record types**: `A`, `AAAA`, `ALIAS`, `CNAME`, `MX`, `NS`, `SRV`, `SSHFP`, `CAA`, `TXT`, `TLSA`.
+- **Dynamic records**: not supported. The provider sets `SUPPORTS_DYNAMIC = False` and `SUPPORTS_GEO = False`.
+- **Zone creation**: not supported through the API. Applying changes to a zone requires that the zone already exists in Mythic Beasts.
+- **TXT handling**: values are escaped when read from the API and unescaped before being sent back so literal semicolons are preserved.
 
-## Development & Testing
+### Authentication and Requests
 
-- **Setup Script**: Run `./script/bootstrap` to create a virtual environment, install dependencies (including `black`, `isort`, `pyflakes`, and `pytest`), and configure pre-commit hooks.
-- **Test Suite**: Run unit tests using `pytest` via `./script/test` (or `pytest tests/`). Test files are located in [tests/](file:///home/ross/octodns/octodns-mythicbeasts/tests).
-- **Code Coverage**: Verify code coverage using `./script/coverage`.
+- Authentication uses the API key/secret pair by posting to the Mythic Beasts auth endpoint and storing a Bearer token on the session.
+- The provider uses direct HTTP requests to the DNS API v2 base URL and exposes wrapper helpers for `GET`, `POST`, `PUT`, `PATCH`, and `DELETE` operations.
 
-## Key Constraints & Behaviors
+## Development and Testing
 
-- **Python Version**: Targets Python `>=3.9`.
-- **Formatting**: Code formatting is enforced via `black` (version `>=26.0.0,<27.0.0`) and `isort`.
+- **Setup**: run `./script/bootstrap` to create the virtual environment and install runtime and development dependencies.
+- **Formatting**: run `./script/format` to apply `isort` and `black`.
+- **Linting**: run `./script/lint` to run `pyflakes`.
+- **Tests**: run `./script/test` or `pytest --disable-network`.
+- **Full CI check**: run `./script/cibuild`.
+- **Coverage**: run `./script/coverage` to confirm the provider remains well covered by tests.
+
+## Tips & Hints for AI
+
+- Keep the normalization helpers and record translation layers consistent whenever record shape or naming behavior changes.
+- Preserve the current semantics around TXT escaping, ALIAS/ANAME translation, and zone existence checks.
+- Prefer small, test-driven changes and use the existing `requests_mock`-based tests rather than introducing network-dependent coverage.
+- Follow the repository’s Python style conventions: `black`, `isort`, and `pyflakes` are part of the normal workflow.
+- Mythic Beasts DNSv2 API docs are here: `https://www.mythic-beasts.com/support/api/dnsv2`
+- Mythic Beasts auth API docs are here: `https://www.mythic-beasts.com/support/api/auth`

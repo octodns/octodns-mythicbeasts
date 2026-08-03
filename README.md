@@ -48,7 +48,7 @@ Version 2.0.0+ targets the Mythic Beasts V2 API. Documentation can be found [her
 
 #### Records
 
-MythicBeastsProvider supports A, AAAA, ALIAS, CNAME, MX, NS, SRV, SSHFP, CAA, and TXT
+MythicBeastsProvider supports A, AAAA, ALIAS, CNAME, MX, NS, SRV, SSHFP, CAA,TLSA, and TXT
 
 #### Dynamic
 
