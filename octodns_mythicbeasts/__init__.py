@@ -69,7 +69,6 @@ class MythicBeastsProvider(BaseProvider):
                 'Authentication failed for Mythic Beasts API, check your API key and secret'
             )
 
-        payload = resp.json()
         try:
             resp.raise_for_status()
         except HTTPError:
@@ -82,6 +81,9 @@ class MythicBeastsProvider(BaseProvider):
                 resp.text,
             )
             raise
+
+        payload: dict = resp.json()
+
         return payload
 
     def _get(self, path, **kwargs) -> dict:
