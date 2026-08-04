@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from enum import Enum
 from logging import getLogger
 from typing import ClassVar
 
@@ -17,6 +18,12 @@ __version__ = __VERSION__ = '2.0.0'
 
 class MythicBeastsZoneNotFoundException(ProviderException):
     pass
+
+
+class AuthState(Enum):
+    UNAUTHORISED = 0
+    IN_PROGRESS = 1
+    AUTHORISED = 2
 
 
 class MythicBeastsProvider(BaseProvider):
@@ -50,6 +57,14 @@ class MythicBeastsProvider(BaseProvider):
         json=None,
         auth=None,
     ) -> dict:
+
+        if self._auth_state not in (
+            AuthState.AUTHORISED,
+            AuthState.IN_PROGRESS,
+        ):
+            self.log.debug('_request: access_token not set, calling _login()')
+            self._login(self._api_key, self._api_secret)
+
         self.log.debug('_request: method=%s, path=%s', method, path)
 
         url: str = f'{url}{path}'
@@ -105,6 +120,9 @@ class MythicBeastsProvider(BaseProvider):
         """
         Use the Mythic Beasts Auth Service to retrieve an access token.
         """
+
+        self._auth_state = AuthState.IN_PROGRESS
+
         resp = self._post(
             url=self.MB_API_AUTH_URL,
             path='login',
@@ -112,8 +130,11 @@ class MythicBeastsProvider(BaseProvider):
             auth=(api_key, api_secret),
         )
 
+        self._access_token: str = resp['access_token']
+        self._auth_state: AuthState = AuthState.AUTHORISED
+
         self._sess.headers.update(
-            {'Authorization': 'Bearer ' + resp['access_token']}
+            {'Authorization': f'Bearer {self._access_token}'}
         )
 
     def __init__(self, id, api_key, api_secret, *args, **kwargs) -> None:
@@ -138,7 +159,8 @@ class MythicBeastsProvider(BaseProvider):
         self._zones: dict[str, dict] = {}
         self._zone_records: dict[str, dict] = {}
 
-        self._login(self._api_key, self._api_secret)
+        self._auth_state: AuthState = AuthState.UNAUTHORISED
+        self._access_token: str | None = None
 
     @property
     def zones(self) -> dict[str, dict]:

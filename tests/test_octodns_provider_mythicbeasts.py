@@ -207,8 +207,9 @@ class TestMythicBeastsProvider(TestCase):
     def test_init_login_failure_raises_provider_exception(self):
         with requests_mock() as mock:
             mock.post(self.auth_url, status_code=401, json={'detail': 'nope'})
+            provider = self._provider()
             with self.assertRaises(ProviderException):
-                self._provider()
+                _ = provider.zones
 
     def test_init_accepts_timeout_kwarg(self):
         with requests_mock() as mock:
@@ -234,11 +235,12 @@ class TestMythicBeastsProvider(TestCase):
             )
 
             provider = self._provider()
+            self.assertNotIn('Authorization', provider._sess.headers)
+
+            first = provider.zones
             self.assertEqual(
                 'Bearer token', provider._sess.headers['Authorization']
             )
-
-            first = provider.zones
             second = provider.zones
             self.assertIs(first, second)
             self.assertIn('unit.tests.', first)
@@ -250,6 +252,13 @@ class TestMythicBeastsProvider(TestCase):
                 if req.method == 'GET' and req.url == self.zones_url
             ]
             self.assertEqual(1, len(zone_gets))
+
+            auth_posts = [
+                req
+                for req in mock.request_history
+                if req.method == 'POST' and req.url == self.auth_url
+            ]
+            self.assertEqual(1, len(auth_posts))
 
     def test_zone_records_returns_empty_for_unknown_zone(self):
         with requests_mock() as mock:
