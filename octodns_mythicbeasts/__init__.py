@@ -50,10 +50,10 @@ class MythicBeastsProvider(BaseProvider):
         data=None,
         json=None,
         auth=None,
-        allow_login=False,
+        allow_login=True,
     ) -> dict:
 
-        if not self._access_token and not allow_login:
+        if not self._access_token and allow_login:
             self.log.debug('_request: access_token not set, calling _login()')
             self._login(self._api_key, self._api_secret)
 
@@ -118,7 +118,7 @@ class MythicBeastsProvider(BaseProvider):
             path='login',
             data={'grant_type': 'client_credentials'},
             auth=(api_key, api_secret),
-            allow_login=True,
+            allow_login=False,
         )
 
         self._access_token: str = resp['access_token']
