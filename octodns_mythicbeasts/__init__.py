@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from enum import Enum
 from logging import getLogger
 from typing import ClassVar
 
@@ -18,12 +17,6 @@ __version__ = __VERSION__ = '2.0.0'
 
 class MythicBeastsZoneNotFoundException(ProviderException):
     pass
-
-
-class AuthState(Enum):
-    UNAUTHORISED = 0
-    IN_PROGRESS = 1
-    AUTHORISED = 2
 
 
 class MythicBeastsProvider(BaseProvider):
@@ -56,12 +49,10 @@ class MythicBeastsProvider(BaseProvider):
         data=None,
         json=None,
         auth=None,
+        allow_login=False,
     ) -> dict:
 
-        if self._auth_state not in (
-            AuthState.AUTHORISED,
-            AuthState.IN_PROGRESS,
-        ):
+        if not self._access_token and not allow_login:
             self.log.debug('_request: access_token not set, calling _login()')
             self._login(self._api_key, self._api_secret)
 
@@ -121,17 +112,15 @@ class MythicBeastsProvider(BaseProvider):
         Use the Mythic Beasts Auth Service to retrieve an access token.
         """
 
-        self._auth_state = AuthState.IN_PROGRESS
-
         resp = self._post(
             url=self.MB_API_AUTH_URL,
             path='login',
             data={'grant_type': 'client_credentials'},
             auth=(api_key, api_secret),
+            allow_login=True
         )
 
         self._access_token: str = resp['access_token']
-        self._auth_state: AuthState = AuthState.AUTHORISED
 
         self._sess.headers.update(
             {'Authorization': f'Bearer {self._access_token}'}
@@ -159,7 +148,6 @@ class MythicBeastsProvider(BaseProvider):
         self._zones: dict[str, dict] = {}
         self._zone_records: dict[str, dict] = {}
 
-        self._auth_state: AuthState = AuthState.UNAUTHORISED
         self._access_token: str | None = None
 
     @property
