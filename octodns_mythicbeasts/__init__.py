@@ -117,7 +117,7 @@ class MythicBeastsProvider(BaseProvider):
             path='login',
             data={'grant_type': 'client_credentials'},
             auth=(api_key, api_secret),
-            allow_login=True
+            allow_login=True,
         )
 
         self._access_token: str = resp['access_token']
@@ -146,7 +146,7 @@ class MythicBeastsProvider(BaseProvider):
         self._api_secret = api_secret
 
         self._zones: dict[str, dict] = {}
-        self._zone_records: dict[str, dict] = {}
+        self._zone_records: dict[str, list[dict]] = {}
 
         self._access_token: str | None = None
 
@@ -165,14 +165,16 @@ class MythicBeastsProvider(BaseProvider):
         return self._zones
 
     def zone_records(self, zone: Zone) -> list[dict]:
-        if zone.name not in self._zone_records:
-            if zone.name not in self.zones:
+        zone_name: str = str(zone.name)
+
+        if zone_name not in self._zone_records:
+            if zone_name not in self.zones:
                 return []
 
-            zone_name = zone.name.removesuffix('.')
+            normalized_zone_name = zone_name.removesuffix('.')
 
             record_response: dict = self._get(
-                path=f'zones/{zone_name}/records',
+                path=f'zones/{normalized_zone_name}/records',
                 params={'exclude-generated': 'true'},
             )
 
@@ -181,9 +183,9 @@ class MythicBeastsProvider(BaseProvider):
             )
             records = list(record_response_list)
 
-            self._zone_records[zone.name] = records
+            self._zone_records[zone_name] = records
 
-        return self._zone_records[zone.name]
+        return self._zone_records[zone_name]
 
     def _record_for(
         self,
