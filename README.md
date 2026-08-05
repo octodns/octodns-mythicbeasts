@@ -18,8 +18,8 @@ Pinning specific versions or SHAs is recommended to avoid unplanned upgrades.
 
 ```
 # Start with the latest versions and don't just copy what's here
-octodns==0.9.14
-octodns-mythicbeasts==0.0.1
+octodns==0.21.1
+octodns-mythicbeasts==2.0.0
 ```
 
 ##### SHAs
@@ -36,15 +36,19 @@ octodns-mythicbeasts==0.0.1
 providers:
   mythicbeasts:
     class: octodns_mythicbeasts.MythicBeastsProvider
-    passwords:
-      my.domain.: env/MYTHICBEASTS_PASSWORD
+    api_key: env/MYTHICBEASTS_API_KEY
+    api_secret: env/MYTHICBEASTS_API_SECRET
 ```
 
 ### Support Information
 
+#### API Docs
+
+Version 2.0.0+ targets the Mythic Beasts V2 API. Documentation can be found [here](https://www.mythic-beasts.com/support/api/dnsv2).
+
 #### Records
 
-MythicBeastsProvider supports A, AAAA, ALIAS, CNAME, MX, NS, SRV, SSHFP, CAA, and TXT
+MythicBeastsProvider supports A, AAAA, ALIAS, CNAME, MX, NS, SRV, SSHFP, CAA,TLSA, and TXT
 
 #### Dynamic
 
@@ -53,3 +57,7 @@ MythicBeastsProvider does not support dynamic records.
 ### Development
 
 See the [/script/](/script/) directory for some tools to help with the development process. They generally follow the [Script to rule them all](https://github.com/github/scripts-to-rule-them-all) pattern. Most useful is `./script/bootstrap` which will create a venv and install both the runtime and development related requirements. It will also hook up a pre-commit hook that covers most of what's run by CI.
+
+Run the full test suite with `./script/cibuild`.
+
+Don't forget to add a changelog entry with `./script/changelog create -t {major|minor|patch} "change description"`
