@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from logging import getLogger
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 
 from requests import HTTPError, Session
 
@@ -9,6 +9,7 @@ from octodns.provider import ProviderException
 from octodns.provider.base import BaseProvider
 from octodns.provider.plan import Plan
 from octodns.record import Change, Record
+from octodns.record.base import ValueMixin, ValuesMixin
 from octodns.zone import Zone
 
 # TODO: remove __VERSION__ with the next major version release
@@ -390,13 +391,15 @@ class MythicBeastsProvider(BaseProvider):
     def _contents_for_single(
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
+
+        single = cast(ValueMixin, record)
         contents: dict[str, list] = {
             'records': [
                 {
                     'host': record_name,
                     'type': record_type,
                     'ttl': record.ttl,
-                    'data': record.value,
+                    'data': single.value,
                 }
             ]
         }
@@ -406,6 +409,8 @@ class MythicBeastsProvider(BaseProvider):
     def _contents_for_multiple(
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
+
+        multiple = cast(ValuesMixin, record)
         contents: dict[str, list] = {
             'records': [
                 {
@@ -414,7 +419,7 @@ class MythicBeastsProvider(BaseProvider):
                     'ttl': record.ttl,
                     'data': value,
                 }
-                for value in record.values
+                for value in multiple.values
             ]
         }
 
@@ -423,10 +428,12 @@ class MythicBeastsProvider(BaseProvider):
     def _contents_for_MX(
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
+
+        multiple = cast(ValuesMixin, record)
         contents: dict[str, list] = self._contents_for_multiple(
             record, record_name, record_type
         )
-        for i, value in enumerate(record.values):
+        for i, value in enumerate(multiple.values):
             contents['records'][i]['mx_priority'] = value['preference']
             contents['records'][i]['data'] = value['exchange']
         return contents
@@ -434,10 +441,12 @@ class MythicBeastsProvider(BaseProvider):
     def _contents_for_SRV(
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
+
+        multiple = cast(ValuesMixin, record)
         contents: dict[str, list] = self._contents_for_multiple(
             record, record_name, record_type
         )
-        for i, value in enumerate(record.values):
+        for i, value in enumerate(multiple.values):
             contents['records'][i]['srv_priority'] = value['priority']
             contents['records'][i]['srv_weight'] = value['weight']
             contents['records'][i]['srv_port'] = value['port']
@@ -447,10 +456,12 @@ class MythicBeastsProvider(BaseProvider):
     def _contents_for_SSHFP(
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
+
+        multiple = cast(ValuesMixin, record)
         contents: dict[str, list] = self._contents_for_multiple(
             record, record_name, record_type
         )
-        for i, value in enumerate(record.values):
+        for i, value in enumerate(multiple.values):
             contents['records'][i]['sshfp_algorithm'] = value['algorithm']
             contents['records'][i]['sshfp_type'] = value['fingerprint_type']
             contents['records'][i]['data'] = value['fingerprint']
@@ -459,10 +470,12 @@ class MythicBeastsProvider(BaseProvider):
     def _contents_for_TLSA(
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
+
+        multiple = cast(ValuesMixin, record)
         contents: dict[str, list] = self._contents_for_multiple(
             record, record_name, record_type
         )
-        for i, value in enumerate(record.values):
+        for i, value in enumerate(multiple.values):
             contents['records'][i]['tlsa_usage'] = value['certificate_usage']
             contents['records'][i]['tlsa_selector'] = value['selector']
             contents['records'][i]['tlsa_matching'] = value['matching_type']
@@ -474,10 +487,12 @@ class MythicBeastsProvider(BaseProvider):
     def _contents_for_CAA(
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
+
+        multiple = cast(ValuesMixin, record)
         contents: dict[str, list] = self._contents_for_multiple(
             record, record_name, record_type
         )
-        for i, value in enumerate(record.values):
+        for i, value in enumerate(multiple.values):
             contents['records'][i]['caa_flags'] = value['flags']
             contents['records'][i]['caa_tag'] = value['tag']
             contents['records'][i]['data'] = value['value']
@@ -486,10 +501,12 @@ class MythicBeastsProvider(BaseProvider):
     def _contents_for_TXT(
         self, record: Record, record_name: str, record_type: str
     ) -> dict[str, list]:
+
+        multiple = cast(ValuesMixin, record)
         contents: dict[str, list] = self._contents_for_multiple(
             record, record_name, record_type
         )
-        for i, value in enumerate(record.values):
+        for i, value in enumerate(multiple.values):
             # reverse the escaping applied in _data_for_TXT before sending to the API
             contents['records'][i]['data'] = value.replace('\\;', ';')
         return contents
@@ -504,9 +521,10 @@ class MythicBeastsProvider(BaseProvider):
 
         zone_name, record_name, record_type = _normalise_content(record)
         path: str = f'zones/{zone_name}/records/{record_name}/{record_type}'
+        record_type_name: str = cast(str, cast(Any, record)._type)
 
         contents_for: Callable[[Record, str, str], dict[str, list]] = getattr(
-            self, f'_contents_for_{record._type}'
+            self, f'_contents_for_{record_type_name}'
         )
         content: dict[str, list] = contents_for(
             record, record_name, record_type
@@ -528,10 +546,11 @@ class MythicBeastsProvider(BaseProvider):
 
     def _apply_Update(self, change: Change) -> None:
         new: Record = change.new
+        record_type_name: str = cast(str, cast(Any, new)._type)
         self.log.debug(
             '_apply_Update:  name=%s type=%s ttl=%s',
             new.name,
-            new._type,
+            record_type_name,
             new.ttl,
         )
 
@@ -557,7 +576,7 @@ def _normalise_content(record: Record) -> tuple[str, str, str]:
 
     zone_name: str = record.zone.name.removesuffix('.')
     record_name: str = record.name
-    record_type: str = record._type
+    record_type: str = cast(str, cast(Any, record)._type)
 
     # Mythic Beasts uses an '@' for the apex record name, but octodns uses an empty string.
     if record_name == '':
