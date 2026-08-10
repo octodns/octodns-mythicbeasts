@@ -13,7 +13,7 @@ from octodns.record.base import ValueMixin, ValuesMixin
 from octodns.zone import Zone
 
 # TODO: remove __VERSION__ with the next major version release
-__version__ = __VERSION__ = '2.0.0'
+__version__ = __VERSION__ = '3.0.0'
 
 
 class MythicBeastsZoneNotFoundException(ProviderException):
